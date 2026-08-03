@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control Viajes - Chofer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{
+      --bg:#0b0b0f; --panel:#15151d; --panel2:#101018; --gold:#d4af37; --gold2:#f1d77a;
+      --text:#f5f5f5; --muted:#b7b7b7; --line:#2a2a35; --danger:#dc2626; --ok:#16a34a; --info:#2563eb;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#1a1a22 0%,var(--bg) 45%);color:var(--text)}
+    .container{max-width:1200px;margin:0 auto;padding:24px}
+    .header,.card,.box{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px}
+    .header{padding:22px;margin-bottom:18px}
+    .brand{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--gold),#7a6220);color:#111;font-weight:900;display:flex;align-items:center;justify-content:center;font-size:22px}
+    h1,h2{margin:0}
+    h1{font-size:30px}
+    h2{font-size:20px;color:var(--gold2);margin-bottom:12px}
+    .subtitle{margin:6px 0 0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .card{padding:20px}
+    .box{padding:14px;margin-top:14px}
+    .tag{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(212,175,55,.12);color:var(--gold2);font-size:12px;border:1px solid rgba(212,175,55

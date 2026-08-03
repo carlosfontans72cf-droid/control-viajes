@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control Viajes - Dueño</title>
+  <style>
+    :root{--bg:#0b0b0f;--panel:#15151d;--panel2:#101018;--gold:#d4af37;--gold2:#f1d77a;--text:#f5f5f5;--muted:#b7b7b7;--line:#2a2a35;--danger:#dc2626;--ok:#16a34a;--info:#2563eb}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#1a1a22 0%,var(--bg) 45%);color:var(--text)}
+    .container{max-width:1300px;margin:0 auto;padding:24px}
+    .header{background:linear-gradient(135deg,#0f0f14,#1a1a22);border:1px solid var(--line);border-radius:20px;padding:24px;margin-bottom:22px}
+    .brand{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    .logo{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,var(--gold),#7a6220);color:#111;font-weight:900;display:flex;align-items:center;justify-content:center;font-size:22px}
+    h1{margin:0;font-size:32px}
+    .subtitle{margin:6px 0 0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1.1fr 1fr;gap:18px}
+    .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:20px}
+    .card h2{margin:0 0 14px;font-size:20px;color:var(--gold2)}
+    .section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:var(--muted);font-size:14px;gap:8px;flex-wrap:wrap}
+    .tag{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(212,175,55,.12);color:var(--gold2);font-size:12px;border:1px solid rgba(212,175,55,.25)}
+    .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .full{grid-column:1/-1}
+    label{display:block;margin-bottom:6px;font-size:13px;font-weight:bold;color:#ddd}
+    input,select,textarea{width:100%;border:1px solid #303043;background:#0f0f14;color:var(--text);border-radius:12px;padding:12px 14px;font-size:15px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.15)}
+    textarea{min-height:92px;resize:vertical}
+    .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{border:none;border-radius:12px;padding:13px 16px;font-size:15px;font-weight:bold;cursor:pointer}
+    .btn-primary{background:linear-gradient(135deg,var(--gold),#9b7b24);color:#111}
+    .btn-dark{background:#23232e;color:#fff;border:1px solid #343447}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn-ok{background:var(--ok);color:#fff}
+    .btn-info{background:var(--info);color:#fff}
+    .result,.panel-box{margin-top:14px;padding:14px;border-radius:12px;background:#0f0f14;border:1px dashed #3b3b4d;color:#fff;line-height:1.6}
+    .mini{font-size:13px;color:var(--muted);margin-top:8px}
+    .drivers,.alerts,.history{display:grid;gap:10px;margin-top:12px}
+    .item{background:#0f0f14;border:1px solid #2f2f3f;border-radius:12px;padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+    .item strong{color:var(--gold2)}
+    .item small{color:var(--muted)}
+    .toggle-panel{margin-top:12px;padding:12px;border-radius:12px;background:#101018;border:1px solid #2d2d3c}
+    .sub-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .map-box{min-height:300px;border:1px solid #2a2a35;border-radius:14px;overflow:hidden}
+    #map{height:300px;width:100%}
+    .two-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .panic-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-radius:12px;background:var(--danger);color:#fff;font-weight:bold;cursor:pointer;user-select:none}
+    .settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .history-total{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:12px;background:#101018;border:1px solid #2d2d3c;margin-top:10px}
+    @media (max-width:980px){.grid,.two-cols,.form-grid,.settings-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <div class="logo">TV</div>
+        <div>
+          <h1>Control Viajes</h1>
+          <p class="subtitle">Panel para dueño, alertas, precios, historial y mapa.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Panel de dueño / admin</h2>
+        <div class="section-title">
+          <span>Crear, editar y borrar choferes</span>
+          <span class="tag">Control total</span>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label>Nombre</label>
+            <input type="text" id="driverName" placeholder="Nombre">
+          </div>
+          <div>
+            <label>Apellido</label>
+            <input type="text" id="driverLastName" placeholder="Apellido">
+          </div>
+          <div>
+            <label>Codigo de seguridad</label>
+            <input type="text" id="driverCode" placeholder="Codigo">
+          </div>
+          <div>
+            <label>Sector / zona</label>
+            <input type="text" id="driverSector" placeholder="Ej: Norte">
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" class="btn-primary" onclick="saveDriver()">Guardar chofer</button>
+          <button type="button" class="btn-info" onclick="exportDriversCSV()">Excel</button>
+          <button type="button" class="btn-info" onclick="exportReportPDF()">PDF</button>
+          <button type="button" class="btn-dark" onclick="clearAlerts()">Borrar alertas</button>
+          <button type="button" class="btn-info" onclick="shareDriversWhatsApp()">Compartir</button>
+        </div>
+
+        <div class="panel-box">
+          <strong>Choferes registrados</strong>
+          <div id="driversList" class="drivers"></div>
+        </div>
+
+        <div class="panel-box">
+          <strong>Alertas activas</strong>
+          <div id="alertsList" class="alerts"></div>
+        </div>
+
+        <div class="panel-box">
+          <strong>Alertas resueltas</strong>
+          <div id="resolvedList" class="history"></div>
+        </div>
+
+        <div class="panel-box">
+          <strong>Historial de viajes</strong>
+          <div id="tripHistoryList" class="history"></div>
+          <div class="history-total" id="historyTotal">Total generado: $0.00</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Precios y viajes</h2>
+        <div class="section-title">
+          <span>Origen, destino y calculo inmediato</span>
+          <span class="tag">Chofer</span>
+        </div>
+
+        <div class="panel-box">
+          <strong>Configuracion de precios</strong>
+          <div class="settings-grid" style="margin-top:12px;">
+            <div><label>Precio base</label><input type="number" id="baseFare" min="0" step="0.01" value="2"></div>
+            <div><label>Precio por kilometro</label><input type="number" id="pricePerKm" min="0" step="0.01" value="1.5"></div>
+            <div><label>Precio por hora</label><input type="number" id="pricePerHour" min="0" step="0.01" value="10"></div>
+            <div><label>Zona A</label><input type="number" id="zoneA" min="0" step="0.01" value="5"></div>
+            <div><label>Zona B</label><input type="number" id="zoneB" min="0" step="0.01" value="8"></div>
+            <div><label>Zona C</label><input type="number" id="zoneC" min="0" step="0.01" value="12"></div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn-primary" onclick="saveSettings()">Guardar precios</button>
+          </div>
+        </div>
+
+        <form id="tripForm">
+          <div class="form-grid" style="margin-top:14px;">
+            <div class="full">
+              <label>Punto de partida</label>
+              <input type="text" id="origin" placeholder="Ej: Aeropuerto">
+            </div>
+            <div class="full">
+              <label>Destino</label>
+              <input type="text" id="destination" placeholder="Ej: Hotel Centro">
+            </div>
+            <div>
+              <label>Modo de cobro</label>
+              <select id="mode" onchange="toggleMode()">
+                <option value="km">Por kilometro</option>
+                <option value="zone">Por zona</option>
+                <option value="hour">Por hora</option>
+              </select>
+            </div>
+            <div id="kmBox">
+              <label>Kilometros</label>
+              <input type="number" id="km" min="0" step="0.1" placeholder="Ej: 12.5">
+            </div>
+            <div id="hourBox" class="hide">
+              <label>Horas</label>
+              <input type="number" id="hours" min="0" step="0.1" placeholder="Ej: 1.5">
+            </div>
+            <div id="zoneBox" class="hide">
+              <label>Zona</label>
+              <select id="zone">
+                <option value="A">Zona A</option>
+                <option value="B">Zona B</option>
+                <option value="C">Zona C</option>
+              </select>
+            </div>
+            <div class="full">
+              <label>Notas</label>
+              <textarea id="notes" placeholder="Cliente, maletas, observaciones..."></textarea>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button type="submit" class="btn-primary">Calcular precio</button>
+            <button type="button" class="btn-ok" onclick="confirmTrip()">Confirmar viaje</button>
+            <button type="button" class="btn-danger" onclick="togglePanicMenu()">Panico</button>
+            <button type="button" class="btn-dark" onclick="finishTrip()">Finalizar viaje</button>
+          </div>
+        </form>
+
+        <details id="panicMenu" class="toggle-panel">
+          <summary class="panic-summary">Panico <span>+</span></summary>
+          <div class="sub-actions">
+            <button type="button" class="btn-danger" onclick="sendPanic('robo')">Alerta roja por robo</button>
+            <button type="button" class="btn-danger" onclick="showBreakdownForm()">Alerta por desperfecto</button>
+            <button type="button" class="btn-danger" onclick="sendPanic('combustible')">Alerta por bajo combustible</button>
+          </div>
+          <div id="breakdownForm" class="hide" style="margin-top:12px;">
+            <label>Tipo de desperfecto</label>
+            <textarea id="breakdownType" placeholder="Ej: llanta ponchada, motor, bateria..."></textarea>
+            <div class

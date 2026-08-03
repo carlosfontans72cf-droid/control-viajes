@@ -4,24 +4,664 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Control Viajes - Chofer</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
-    :root{
-      --bg:#0b0b0f; --panel:#15151d; --panel2:#101018; --gold:#d4af37; --gold2:#f1d77a;
-      --text:#f5f5f5; --muted:#b7b7b7; --line:#2a2a35; --danger:#dc2626; --ok:#16a34a; --info:#2563eb;
-    }
+    :root{--bg:#0b0b0f;--panel:#15151d;--panel2:#101018;--gold:#d4af37;--gold2:#f1d77a;--text:#f5f5f5;--muted:#b7b7b7;--line:#2a2a35;--danger:#dc2626;--ok:#16a34a;--info:#2563eb}
     *{box-sizing:border-box}
     body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#1a1a22 0%,var(--bg) 45%);color:var(--text)}
-    .container{max-width:1200px;margin:0 auto;padding:24px}
-    .header,.card,.box{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px}
-    .header{padding:22px;margin-bottom:18px}
-    .brand{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-    .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--gold),#7a6220);color:#111;font-weight:900;display:flex;align-items:center;justify-content:center;font-size:22px}
-    h1,h2{margin:0}
-    h1{font-size:30px}
-    h2{font-size:20px;color:var(--gold2);margin-bottom:12px}
+    .container{max-width:980px;margin:0 auto;padding:18px}
+    .header{background:linear-gradient(135deg,#0f0f14,#1a1a22);border:1px solid var(--line);border-radius:20px;padding:18px;margin-bottom:14px}
+    h1{margin:0;font-size:26px}
     .subtitle{margin:6px 0 0;color:var(--muted)}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .card{padding:20px}
-    .box{padding:14px;margin-top:14px}
-    .tag{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(212,175,55,.12);color:var(--gold2);font-size:12px;border:1px solid rgba(212,175,55
+    .grid{display:grid;grid-template-columns:1fr;gap:14px}
+    .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:16px}
+    label{display:block;margin-bottom:6px;font-size:13px;font-weight:bold;color:#ddd}
+    input,select,textarea{width:100%;border:1px solid #303043;background:#0f0f14;color:var(--text);border-radius:12px;padding:12px 14px;font-size:15px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.15)}
+    .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{border:none;border-radius:12px;padding:12px 14px;font-size:15px;font-weight:bold;cursor:pointer}
+    .btn-primary{background:linear-gradient(135deg,var(--gold),#9b7b24);color:#111}
+    .btn-dark{background:#23232e;color:#fff;border:1px solid #343447}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn-ok{background:var(--ok);color:#fff}
+    .btn-info{background:var(--info);color:#fff}
+    .panel-box{margin-top:12px;padding:12px;border-radius:12px;background:#0f0f14;border:1px dashed #3b3b4d;color:#fff;line-height:1.6}
+    .mini{font-size:13px;color:var(--muted);margin-top:8px}
+    .map-box{min-height:320px;border:1px solid #2a2a35;border-radius:14px;overflow:hidden}
+    #map{height:320px;width:100%}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .hide{display:none}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:#0b0b0f;border:1px solid #2a2a35;padding:2px 8px;border-radius:10px;color:var(--gold2)}
+    .status{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid #2d2d3c;background:#101018;color:var(--muted);font-size:13px}
+    .pill.ok{border-color:rgba(22,163,74,.35);color:#baf7d0}
+    .pill.warn{border-color:rgba(220,38,38,.35);color:#ffd0d0}
+  </style>
+</head>
+
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Control Viajes - Chofer</h1>
+    <p class="subtitle">GPS en vivo, alertas al dueño y cálculo de precio</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- Login -->
+    <div class="card" id="loginCard">
+      <h2 style="margin:0 0 10px;color:var(--gold2)">Ingresar</h2>
+
+      <div class="row">
+        <div style="flex:1;min-width:220px">
+          <label>Nombre</label>
+          <input type="text" id="driverName" placeholder="Nombre">
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label>Apellido</label>
+          <input type="text" id="driverLastName" placeholder="Apellido">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1;min-width:220px">
+          <label>Contraseña (código del dueño)</label>
+          <input type="password" id="driverCode" placeholder="Ej: 1234">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" type="button" onclick="login()">Entrar</button>
+      </div>
+
+      <div class="mini">Si la contraseña no coincide, no se habilita el acceso.</div>
+    </div>
+
+    <!-- Panel Chofer -->
+    <div class="card hide" id="appCard">
+      <div class="status">
+        <span class="pill ok" id="gpsPill">GPS: esperando...</span>
+        <span class="pill" id="tripPill">Viaje: sin iniciar</span>
+        <span class="pill" id="routePill">Fuera de ruta: monitoreando</span>
+      </div>
+
+      <div class="panel-box">
+        <div><strong>Chofer:</strong> <span class="kbd" id="driverLabel">-</span></div>
+        <div class="mini">Tu ubicación se envía en vivo mientras estés dentro de la app.</div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div style="flex:1;min-width:240px">
+          <label>Dirección de partida (texto)</label>
+          <input type="text" id="fromAddress" placeholder="Ej: Av. Siempre Viva 123">
+        </div>
+        <div style="flex:1;min-width:240px">
+          <label>Dirección de llegada (texto)</label>
+          <input type="text" id="toAddress" placeholder="Ej: Calle Falsa 456">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div style="flex:1;min-width:160px">
+          <label>Modo de cobro</label>
+          <select id="pricingMode">
+            <option value="km">Kilómetros</option>
+            <option value="hour">Hora</option>
+            <option value="zone">Zona</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <label>Zona (si usás Zona)</label>
+          <select id="zoneSelect">
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <label>Tiempo estimado (horas)</label>
+          <input type="number" id="hoursEstimate" min="0" step="0.1" value="1">
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <strong>Precio estimado:</strong> $<span id="priceEstimate">0</span>
+        <div class="mini">Se calcula con los precios activos del dueño.</div>
+
+        <div class="btn-row">
+          <button class="btn-info" type="button" onclick="calculatePrice()">Calcular precio</button>
+          <button class="btn-primary" type="button" onclick="startTrip()" id="btnStartTrip" disabled>Comenzar viaje</button>
+          <button class="btn-ok" type="button" onclick="finishTrip()" id="btnFinishTrip" disabled>Finalizar viaje</button>
+        </div>
+
+        <div class="mini">Cuando el cliente acepta, tocás “Comenzar viaje”.</div>
+      </div>
+
+      <div class="panel-box" style="border-color:rgba(220,38,38,.35)">
+        <strong>Botón de pánico</strong>
+        <div class="mini">Las alertas llegan al dueño en vivo.</div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn-danger" type="button" onclick="panicRobbery()">1) Alerta de robo</button>
+          <button class="btn-danger" type="button" onclick="panicBreakdown()">2) Alerta de ruptura</button>
+          <button class="btn-danger" type="button" onclick="panicLowFuel()">3) Alerta de poco combustible</button>
+          <button class="btn-danger" type="button" onclick="panicOffRoute()">4) Alerta fuera de ruta</button>
+        </div>
+
+        <div class="mini" style="margin-top:10px">
+          Para “ruptura” te voy a pedir: qué pasó (pincho, motor, etc.).
+        </div>
+      </div>
+
+      <div class="map-box">
+        <div id="map"></div>
+      </div>
+
+      <div class="panel-box">
+        <strong>Monitoreo:</strong>
+        <div class="mini" id="monitorText">-</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    setDoc,
+    addDoc,
+    updateDoc,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // TU CONFIG (tu bloque)
+  const firebaseConfig = {
+    apiKey: "AIzaSyCLsXToNPBwNB3T62KueJHYzMkY7g1W-34",
+    authDomain: "control-viajes-a09a9.firebaseapp.com",
+    projectId: "control-viajes-a09a9",
+    storageBucket: "control-viajes-a09a9.firebasestorage.app",
+    messagingSenderId: "895245177594",
+    appId: "1:895245177594:web:036547aaba4d0460ec2f43"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const $ = (id) => document.getElementById(id);
+
+  // =========================
+  // Estado
+  // =========================
+  let driver = null; // {driverId, name, lastName, code, sector}
+  let gpsWatchId = null;
+
+  let currentPos = null; // {lat,lng,ts}
+  let trip = null; // {tripId, from, to, pricingMode, zone, price, status, startedAt, endedAt, fromLatLng, toLatLng, route}
+  let activePrice = 0;
+  let canStart = false;
+
+  // Fuera de ruta
+  const OFFROUTE_METERS = 200;
+  let offRouteTriggered = false;
+  let routePolyline = null; // array of {lat,lng}
+  let lastRouteCheckAt = 0;
+
+  // =========================
+  // Mapa (Leaflet)
+  // =========================
+  let map = null;
+  let marker = null;
+  let routeLayer = null;
+
+  function initMap(){
+    map = L.map('map').setView([-34.6037, -58.3816], 13); // Buenos Aires default
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    marker = L.marker([-34.6037, -58.3816]).addTo(map);
+
+    routeLayer = L.polyline([], {color:'#f1d77a', weight:4, opacity:0.8}).addTo(map);
+  }
+
+  function setGpsPill(ok){
+    const pill = $("gpsPill");
+    if(ok){
+      pill.textContent = "GPS: activo";
+      pill.classList.add("ok");
+      pill.classList.remove("warn");
+    }else{
+      pill.textContent = "GPS: esperando...";
+      pill.classList.remove("ok");
+      pill.classList.add("warn");
+    }
+  }
+
+  function setTripPill(text){
+    $("tripPill").textContent = "Viaje: " + text;
+  }
+
+  function setMonitor(text){
+    $("monitorText").textContent = text;
+  }
+
+  // =========================
+  // Geocoding (simple)
+  // =========================
+  // Para no depender de servicios pagos, hacemos geocoding con Nominatim.
+  // Si no querés usarlo, decime y lo cambiamos a coordenadas manuales.
+  async function geocodeAddress(address){
+    const q = encodeURIComponent(address);
+    // Nominatim: https://nominatim.openstreetmap.org
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`;
+    const res = await fetch(url, { headers: { "Accept": "application/json" }});
+    if(!res.ok) throw new Error("Geocoding falló");
+    const arr = await res.json();
+    if(!arr || !arr.length) throw new Error("No se encontró ubicación");
+    const item = arr[0];
+    return { lat: Number(item.lat), lng: Number(item.lon) };
+  }
+
+  // =========================
+  // Ruta real con OSRM
+  // =========================
+  async function fetchRouteOSRM(fromLatLng, toLatLng){
+    // OSRM: /route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson
+    const lon1 = fromLatLng.lng, lat1 = fromLatLng.lat;
+    const lon2 = toLatLng.lng, lat2 = toLatLng.lat;
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson&steps=false`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("OSRM falló");
+    const data = await res.json();
+    const coords = data?.routes?.[0]?.geometry?.coordinates;
+    if(!coords || !coords.length) throw new Error("No se pudo obtener ruta");
+    // coords: [ [lon,lat], ...]
+    const poly = coords.map(c => ({ lng: c[0], lat: c[1] }));
+    return poly;
+  }
+
+  // Distancia punto a polilínea (aprox)
+  function haversineMeters(a, b){
+    const R = 6371000;
+    const toRad = (x)=>x*Math.PI/180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.sqrt(s));
+  }
+
+  function closestDistanceToPolylineMeters(point, poly){
+    // poly: array of {lat,lng}
+    // aproximación: min distancia al conjunto de puntos (suficiente para 200m en la práctica)
+    let min = Infinity;
+    for(const p of poly){
+      const d = haversineMeters(point, p);
+      if(d < min) min = d;
+    }
+    return min;
+  }
+
+  // =========================
+  // Firestore: precios activos
+  // =========================
+  async function getActivePrices(){
+    const snap = await getDoc(doc(db, "prices", "active"));
+    if(!snap.exists()) throw new Error("No hay precios activos cargados por el dueño.");
+    return snap.data();
+  }
+
+  // =========================
+  // Login
+  // =========================
+  function normalizeName(s){ return String(s ?? "").trim(); }
+
+  async function login(){
+    const name = normalizeName($("driverName").value);
+    const lastName = normalizeName($("driverLastName").value);
+    const code = String($("driverCode").value ?? "").trim();
+
+    if(!name || !lastName || !code){
+      alert("Completá Nombre, Apellido y Contraseña.");
+      return;
+    }
+
+    try{
+      // Buscamos driver: traemos todos los choferes y comparamos
+      // (evita depender de índices compuestos de Firestore; la lista de
+      // choferes de una app de este tipo es chica)
+      const snap = await getDocs(collection(db, "drivers"));
+      let found = null;
+
+      snap.forEach(d => {
+        const data = d.data();
+        const sameName = String(data.name ?? "").trim().toLowerCase() === name.toLowerCase();
+        const sameLastName = String(data.lastName ?? "").trim().toLowerCase() === lastName.toLowerCase();
+        const sameCode = String(data.code ?? "").trim() === code;
+        if(sameName && sameLastName && sameCode){
+          found = { driverId: d.id, ...data };
+        }
+      });
+
+      if(!found){
+        alert("Nombre, apellido o contraseña incorrectos.");
+        return;
+      }
+
+      driver = found;
+      $("driverLabel").textContent = `${driver.name} ${driver.lastName}`;
+      $("loginCard").classList.add("hide");
+      $("appCard").classList.remove("hide");
+
+      initMap();
+      startGPS();
+    }catch(e){
+      console.error(e);
+      alert("No se pudo ingresar. Revisá consola.");
+    }
+  }
+
+  // =========================
+  // Precio: zona A/B/C -> Norte/Sur/Centro
+  // (el dueño carga km/hora por Norte/Sur/Centro, y zona por A/B/C;
+  // el chofer solo tiene un selector A/B/C, así que lo mapeamos)
+  // =========================
+  function zoneKeyFromSelect(zone){
+    const map = { A: "North", B: "South", C: "Center" };
+    return map[zone] || "North";
+  }
+
+  function drawRoute(poly){
+    if(!routeLayer || !map) return;
+    const latlngs = poly.map(p => [p.lat, p.lng]);
+    routeLayer.setLatLngs(latlngs);
+    if(latlngs.length){
+      map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
+    }
+  }
+
+  // =========================
+  // Calcular precio
+  // =========================
+  async function calculatePrice(){
+    if(!driver){ alert("Iniciá sesión primero."); return; }
+
+    const fromAddress = normalizeName($("fromAddress").value);
+    const toAddress = normalizeName($("toAddress").value);
+    const mode = $("pricingMode").value;
+    const zone = $("zoneSelect").value;
+    const hoursEstimate = Number($("hoursEstimate").value || 0);
+
+    if(!fromAddress || !toAddress){
+      alert("Completá dirección de partida y de llegada.");
+      return;
+    }
+
+    try{
+      const prices = await getActivePrices();
+
+      const fromLatLng = await geocodeAddress(fromAddress);
+      const toLatLng = await geocodeAddress(toAddress);
+
+      let poly = null;
+      let km = 0;
+
+      try{
+        poly = await fetchRouteOSRM(fromLatLng, toLatLng);
+        let meters = 0;
+        for(let i=1;i<poly.length;i++){
+          meters += haversineMeters(poly[i-1], poly[i]);
+        }
+        km = meters / 1000;
+      }catch(e){
+        console.error("OSRM falló, uso distancia directa", e);
+        poly = [fromLatLng, toLatLng];
+        km = haversineMeters(fromLatLng, toLatLng) / 1000;
+      }
+
+      let price = Number(prices.baseFare || 0);
+
+      if(mode === "km"){
+        const rate = Number(prices?.km?.[zoneKeyFromSelect(zone)] || 0);
+        price += rate * km;
+      } else if(mode === "hour"){
+        const rate = Number(prices?.hour?.[zoneKeyFromSelect(zone)] || 0);
+        price += rate * hoursEstimate;
+      } else if(mode === "zone"){
+        const rate = Number(prices?.zone?.[zone] || 0);
+        price += rate;
+      }
+
+      price = Math.round(price * 100) / 100;
+      activePrice = price;
+      $("priceEstimate").textContent = String(price);
+
+      routePolyline = poly;
+      offRouteTriggered = false;
+      $("routePill").textContent = "Fuera de ruta: monitoreando";
+      $("routePill").classList.remove("warn");
+
+      drawRoute(poly);
+
+      trip = {
+        from: fromAddress,
+        to: toAddress,
+        pricingMode: mode,
+        zone,
+        hoursEstimate,
+        km,
+        price,
+        fromLatLng,
+        toLatLng
+      };
+
+      canStart = true;
+      $("btnStartTrip").disabled = false;
+
+      alert(`Precio estimado: $${price}`);
+    }catch(e){
+      console.error(e);
+      alert("No se pudo calcular el precio: " + e.message);
+    }
+  }
+
+  // =========================
+  // Comenzar / Finalizar viaje
+  // =========================
+  async function startTrip(){
+    if(!driver || !trip || !canStart){
+      alert("Calculá el precio antes de comenzar el viaje.");
+      return;
+    }
+
+    try{
+      const tripRef = await addDoc(collection(db, "trips"), {
+        driverId: driver.driverId,
+        driverName: `${driver.name} ${driver.lastName}`,
+        from: trip.from,
+        to: trip.to,
+        pricingMode: trip.pricingMode,
+        zone: trip.zone,
+        km: trip.km,
+        hoursEstimate: trip.hoursEstimate,
+        price: trip.price,
+        status: "en_curso",
+        startedAt: serverTimestamp()
+      });
+
+      trip.tripId = tripRef.id;
+      offRouteTriggered = false;
+
+      setTripPill("en curso");
+      $("btnStartTrip").disabled = true;
+      $("btnFinishTrip").disabled = false;
+    }catch(e){
+      console.error(e);
+      alert("No se pudo comenzar el viaje.");
+    }
+  }
+
+  async function finishTrip(){
+    if(!trip || !trip.tripId){
+      alert("No hay un viaje en curso.");
+      return;
+    }
+
+    try{
+      await updateDoc(doc(db, "trips", trip.tripId), {
+        status: "finalizado",
+        endedAt: serverTimestamp()
+      });
+
+      setTripPill("sin iniciar");
+      $("btnStartTrip").disabled = true;
+      $("btnFinishTrip").disabled = true;
+
+      trip = null;
+      routePolyline = null;
+      offRouteTriggered = false;
+      canStart = false;
+
+      if(routeLayer) routeLayer.setLatLngs([]);
+      setMonitor("-");
+      $("routePill").textContent = "Fuera de ruta: monitoreando";
+      $("routePill").classList.remove("warn");
+
+      alert("Viaje finalizado.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo finalizar el viaje.");
+    }
+  }
+
+  // =========================
+  // GPS en vivo
+  // =========================
+  function startGPS(){
+    if(!("geolocation" in navigator)){
+      alert("Este dispositivo no soporta GPS.");
+      return;
+    }
+
+    gpsWatchId = navigator.geolocation.watchPosition(
+      onGpsUpdate,
+      onGpsError,
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+  }
+
+  function onGpsError(err){
+    console.error(err);
+    setGpsPill(false);
+  }
+
+  async function onGpsUpdate(pos){
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    currentPos = { lat, lng, ts: Date.now() };
+
+    setGpsPill(true);
+
+    if(marker) marker.setLatLng([lat, lng]);
+    if(map && !trip) map.panTo([lat, lng]);
+
+    try{
+      await setDoc(doc(db, "driverLocations", driver.driverId), {
+        lat, lng,
+        driverName: `${driver.name} ${driver.lastName}`,
+        label: `${driver.name} ${driver.lastName}`,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }catch(e){
+      console.error("No se pudo actualizar ubicación", e);
+    }
+
+    checkOffRoute(currentPos);
+  }
+
+  // =========================
+  // Fuera de ruta (automático)
+  // =========================
+  function checkOffRoute(pos){
+    if(!routePolyline || !routePolyline.length || offRouteTriggered) return;
+
+    const now = Date.now();
+    if(now - lastRouteCheckAt < 5000) return; // no chequear más de 1 vez cada 5s
+    lastRouteCheckAt = now;
+
+    const dist = closestDistanceToPolylineMeters(pos, routePolyline);
+    const pill = $("routePill");
+
+    if(dist > OFFROUTE_METERS){
+      offRouteTriggered = true;
+      pill.textContent = `Fuera de ruta: sí (${Math.round(dist)}m)`;
+      pill.classList.add("warn");
+      setMonitor(`Te alejaste ${Math.round(dist)}m de la ruta calculada.`);
+      panicOffRoute();
+    } else {
+      pill.textContent = `Fuera de ruta: monitoreando (${Math.round(dist)}m)`;
+      pill.classList.remove("warn");
+    }
+  }
+
+  // =========================
+  // Pánico
+  // =========================
+  async function sendPanic(type, extraMessage){
+    try{
+      if(!driver){ alert("Iniciá sesión primero."); return; }
+
+      const payload = {
+        type,
+        message: extraMessage || `Alerta de ${type}`,
+        driverId: driver.driverId,
+        driverName: `${driver.name} ${driver.lastName}`,
+        tripId: trip?.tripId || "",
+        createdAt: serverTimestamp(),
+        resolved: false
+      };
+
+      await addDoc(collection(db, "alerts"), payload);
+      alert("Alerta enviada al dueño.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo enviar la alerta. Revisá consola.");
+    }
+  }
+
+  function panicRobbery(){ return sendPanic("robo"); }
+  function panicBreakdown(){ return showBreakdownForm(); }
+  function panicLowFuel(){ return sendPanic("poco_combustible"); }
+  function panicOffRoute(){ return sendPanic("fuera_de_ruta"); }
+
+  function showBreakdownForm(){
+    const reason = prompt("¿Qué pasó? (Ej: pincho, motor, etc.)");
+    if(!reason) return;
+    return sendPanic("ruptura: " + reason, `Ruptura: ${reason}`);
+  }
+
+  // =========================
+  // Exponer funciones para onclick
+  // =========================
+  window.login = login;
+  window.calculatePrice = calculatePrice;
+  window.startTrip = startTrip;
+  window.finishTrip = finishTrip;
+  window.panicRobbery = panicRobbery;
+  window.panicBreakdown = panicBreakdown;
+  window.panicLowFuel = panicLowFuel;
+  window.panicOffRoute = panicOffRoute;
+</script>
+</body>
+</html>

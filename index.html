@@ -4,6 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Control Viajes - Dueño</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     :root{--bg:#0b0b0f;--panel:#15151d;--panel2:#101018;--gold:#d4af37;--gold2:#f1d77a;--text:#f5f5f5;--muted:#b7b7b7;--line:#2a2a35;--danger:#dc2626;--ok:#16a34a;--info:#2563eb}
     *{box-sizing:border-box}
@@ -32,170 +36,811 @@
     .btn-danger{background:var(--danger);color:#fff}
     .btn-ok{background:var(--ok);color:#fff}
     .btn-info{background:var(--info);color:#fff}
-    .result,.panel-box{margin-top:14px;padding:14px;border-radius:12px;background:#0f0f14;border:1px dashed #3b3b4d;color:#fff;line-height:1.6}
+    .panel-box{margin-top:14px;padding:14px;border-radius:12px;background:#0f0f14;border:1px dashed #3b3b4d;color:#fff;line-height:1.6}
     .mini{font-size:13px;color:var(--muted);margin-top:8px}
     .drivers,.alerts,.history{display:grid;gap:10px;margin-top:12px}
     .item{background:#0f0f14;border:1px solid #2f2f3f;border-radius:12px;padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
     .item strong{color:var(--gold2)}
     .item small{color:var(--muted)}
-    .toggle-panel{margin-top:12px;padding:12px;border-radius:12px;background:#101018;border:1px solid #2d2d3c}
-    .sub-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-    .map-box{min-height:300px;border:1px solid #2a2a35;border-radius:14px;overflow:hidden}
-    #map{height:300px;width:100%}
-    .two-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .panic-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-radius:12px;background:var(--danger);color:#fff;font-weight:bold;cursor:pointer;user-select:none}
+    .map-box{min-height:360px;border:1px solid #2a2a35;border-radius:14px;overflow:hidden}
+    #map{height:360px;width:100%}
     .settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    .history-total{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:12px;background:#101018;border:1px solid #2d2d3c;margin-top:10px}
-    @media (max-width:980px){.grid,.two-cols,.form-grid,.settings-grid{grid-template-columns:1fr}}
+    @media (max-width:980px){.grid,.form-grid,.settings-grid{grid-template-columns:1fr}}
+    .hide{display:none}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:#0b0b0f;border:1px solid #2a2a35;padding:2px 8px;border-radius:10px;color:var(--gold2)}
+    .hr{height:1px;background:#2a2a35;margin:14px 0}
   </style>
 </head>
+
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="brand">
-        <div class="logo">TV</div>
+<div class="container">
+  <div class="header">
+    <div class="brand">
+      <div class="logo">TV</div>
+      <div>
+        <h1>Control Viajes</h1>
+        <p class="subtitle">Panel del dueño</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login del dueño -->
+  <div class="card" id="ownerLoginCard">
+    <h2 style="margin:0 0 10px;color:var(--gold2)">Ingresar</h2>
+    <div class="form-grid">
+      <div class="full">
+        <label>Código de acceso</label>
+        <input type="password" id="ownerCode" placeholder="Código del dueño">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn-primary" onclick="ownerLogin()">Entrar</button>
+    </div>
+    <div class="mini" id="ownerLoginHint">Si es la primera vez, vas a poder crear tu código acá mismo.</div>
+  </div>
+
+  <div id="ownerApp" class="hide">
+  <div class="grid">
+    <div class="card">
+      <h2>Choferes</h2>
+
+      <div class="section-title">
+        <span>Crear y borrar choferes</span>
+        <span class="tag">Control total</span>
+      </div>
+
+      <div class="form-grid">
         <div>
-          <h1>Control Viajes</h1>
-          <p class="subtitle">Panel para dueño, alertas, precios, historial y mapa.</p>
+          <label>Nombre</label>
+          <input type="text" id="driverName" placeholder="Nombre">
+        </div>
+        <div>
+          <label>Apellido</label>
+          <input type="text" id="driverLastName" placeholder="Apellido">
+        </div>
+        <div>
+          <label>Codigo de seguridad (contraseña)</label>
+          <input type="text" id="driverCode" placeholder="Ej: 1234">
+        </div>
+        <div>
+          <label>Sector / zona (opcional)</label>
+          <input type="text" id="driverSector" placeholder="Ej: Norte">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn-primary" onclick="saveDriver()">Guardar chofer</button>
+        <button type="button" class="btn-dark" onclick="clearAlerts()">Borrar alertas</button>
+        <button type="button" class="btn-info" onclick="exportDriversCSV()">Exportar CSV</button>
+        <button type="button" class="btn-ok" onclick="shareDriversWhatsApp()">Compartir (WhatsApp)</button>
+      </div>
+
+      <div class="panel-box">
+        <strong>Choferes registrados</strong>
+        <div id="driversList" class="drivers"></div>
+        <div class="mini">Tip: si un chofer está activo, vas a ver su posición en el mapa.</div>
+      </div>
+
+      <div class="panel-box">
+        <strong>Alertas activas</strong>
+        <div id="alertsList" class="alerts"></div>
+      </div>
+
+      <div class="panel-box">
+        <strong>Alertas resueltas (historial)</strong>
+        <div id="resolvedList" class="history"></div>
+        <div class="btn-row">
+          <button type="button" class="btn-dark" onclick="clearHistory()">Borrar historial</button>
         </div>
       </div>
     </div>
 
-    <div class="grid">
-      <div class="card">
-        <h2>Panel de dueño / admin</h2>
-        <div class="section-title">
-          <span>Crear, editar y borrar choferes</span>
-          <span class="tag">Control total</span>
-        </div>
+    <div class="card">
+      <h2>Precios, mapa y viajes</h2>
 
-        <div class="form-grid">
-          <div>
-            <label>Nombre</label>
-            <input type="text" id="driverName" placeholder="Nombre">
-          </div>
-          <div>
-            <label>Apellido</label>
-            <input type="text" id="driverLastName" placeholder="Apellido">
-          </div>
-          <div>
-            <label>Codigo de seguridad</label>
-            <input type="text" id="driverCode" placeholder="Codigo">
-          </div>
-          <div>
-            <label>Sector / zona</label>
-            <input type="text" id="driverSector" placeholder="Ej: Norte">
-          </div>
+      <div class="section-title">
+        <span>Precios activos + mapa</span>
+        <span class="tag">En vivo</span>
+      </div>
+
+      <div class="panel-box">
+        <strong>Precios activos (se guardan al instante)</strong>
+        <div class="settings-grid" style="margin-top:12px;">
+          <div><label>Precio base</label><input type="number" id="baseFare" min="0" step="0.01" value="2"></div>
+          <div><label>Precio por km (Zona Norte)</label><input type="number" id="kmNorth" min="0" step="0.01" value="35"></div>
+          <div><label>Precio por km (Zona Sur)</label><input type="number" id="kmSouth" min="0" step="0.01" value="40"></div>
+
+          <div><label>Precio por km (Zona Centro)</label><input type="number" id="kmCenter" min="0" step="0.01" value="37"></div>
+          <div><label>Precio por hora (Zona Norte)</label><input type="number" id="hourNorth" min="0" step="0.01" value="20"></div>
+          <div><label>Precio por hora (Zona Sur)</label><input type="number" id="hourSouth" min="0" step="0.01" value="20"></div>
+
+          <div><label>Precio por hora (Zona Centro)</label><input type="number" id="hourCenter" min="0" step="0.01" value="20"></div>
+          <div><label>Precio por zona (A)</label><input type="number" id="zoneA" min="0" step="0.01" value="20"></div>
+          <div><label>Precio por zona (B)</label><input type="number" id="zoneB" min="0" step="0.01" value="20"></div>
+
+          <div class="full"><label>Precio por zona (C)</label><input type="number" id="zoneC" min="0" step="0.01" value="20"></div>
         </div>
 
         <div class="btn-row">
-          <button type="button" class="btn-primary" onclick="saveDriver()">Guardar chofer</button>
-          <button type="button" class="btn-info" onclick="exportDriversCSV()">Excel</button>
-          <button type="button" class="btn-info" onclick="exportReportPDF()">PDF</button>
-          <button type="button" class="btn-dark" onclick="clearAlerts()">Borrar alertas</button>
-          <button type="button" class="btn-info" onclick="shareDriversWhatsApp()">Compartir</button>
+          <button type="button" class="btn-primary" onclick="saveSettings()">Guardar precios activos</button>
         </div>
+        <div class="mini">Los choferes usan estos precios activos al confirmar/comenzar viaje.</div>
+      </div>
 
-        <div class="panel-box">
-          <strong>Choferes registrados</strong>
-          <div id="driversList" class="drivers"></div>
+      <div class="panel-box">
+        <strong>Mapa (choferes en vivo)</strong>
+        <div class="map-box" style="margin-top:10px;">
+          <div id="map"></div>
         </div>
+        <div class="mini">Se actualiza cuando los choferes envían GPS.</div>
+      </div>
 
-        <div class="panel-box">
-          <strong>Alertas activas</strong>
-          <div id="alertsList" class="alerts"></div>
-        </div>
-
-        <div class="panel-box">
-          <strong>Alertas resueltas</strong>
-          <div id="resolvedList" class="history"></div>
-        </div>
-
-        <div class="panel-box">
-          <strong>Historial de viajes</strong>
-          <div id="tripHistoryList" class="history"></div>
-          <div class="history-total" id="historyTotal">Total generado: $0.00</div>
+      <div class="panel-box">
+        <strong>Viajes (vista rápida)</strong>
+        <div id="tripsList" class="history"></div>
+        <div class="btn-row">
+          <button type="button" class="btn-info" onclick="exportReportPDF()">Exportar reporte (PDF)</button>
         </div>
       </div>
 
-      <div class="card">
-        <h2>Precios y viajes</h2>
-        <div class="section-title">
-          <span>Origen, destino y calculo inmediato</span>
-          <span class="tag">Chofer</span>
-        </div>
-
-        <div class="panel-box">
-          <strong>Configuracion de precios</strong>
-          <div class="settings-grid" style="margin-top:12px;">
-            <div><label>Precio base</label><input type="number" id="baseFare" min="0" step="0.01" value="2"></div>
-            <div><label>Precio por kilometro</label><input type="number" id="pricePerKm" min="0" step="0.01" value="1.5"></div>
-            <div><label>Precio por hora</label><input type="number" id="pricePerHour" min="0" step="0.01" value="10"></div>
-            <div><label>Zona A</label><input type="number" id="zoneA" min="0" step="0.01" value="5"></div>
-            <div><label>Zona B</label><input type="number" id="zoneB" min="0" step="0.01" value="8"></div>
-            <div><label>Zona C</label><input type="number" id="zoneC" min="0" step="0.01" value="12"></div>
-          </div>
-          <div class="btn-row">
-            <button type="button" class="btn-primary" onclick="saveSettings()">Guardar precios</button>
+      <div class="panel-box">
+        <strong>Configuración</strong>
+        <div class="form-grid" style="margin-top:10px">
+          <div class="full">
+            <label>Link de la app del chofer (para compartir por WhatsApp)</label>
+            <input type="text" id="choferAppUrl" placeholder="https://tu-hosting.com/chofer.html">
           </div>
         </div>
+        <div class="btn-row">
+          <button type="button" class="btn-primary" onclick="saveChoferAppUrl()">Guardar link</button>
+          <button type="button" class="btn-dark" onclick="changeOwnerCode()">Cambiar código de acceso</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
 
-        <form id="tripForm">
-          <div class="form-grid" style="margin-top:14px;">
-            <div class="full">
-              <label>Punto de partida</label>
-              <input type="text" id="origin" placeholder="Ej: Aeropuerto">
-            </div>
-            <div class="full">
-              <label>Destino</label>
-              <input type="text" id="destination" placeholder="Ej: Hotel Centro">
-            </div>
-            <div>
-              <label>Modo de cobro</label>
-              <select id="mode" onchange="toggleMode()">
-                <option value="km">Por kilometro</option>
-                <option value="zone">Por zona</option>
-                <option value="hour">Por hora</option>
-              </select>
-            </div>
-            <div id="kmBox">
-              <label>Kilometros</label>
-              <input type="number" id="km" min="0" step="0.1" placeholder="Ej: 12.5">
-            </div>
-            <div id="hourBox" class="hide">
-              <label>Horas</label>
-              <input type="number" id="hours" min="0" step="0.1" placeholder="Ej: 1.5">
-            </div>
-            <div id="zoneBox" class="hide">
-              <label>Zona</label>
-              <select id="zone">
-                <option value="A">Zona A</option>
-                <option value="B">Zona B</option>
-                <option value="C">Zona C</option>
-              </select>
-            </div>
-            <div class="full">
-              <label>Notas</label>
-              <textarea id="notes" placeholder="Cliente, maletas, observaciones..."></textarea>
-            </div>
-          </div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    doc,
+    setDoc,
+    getDoc,
+    deleteDoc,
+    onSnapshot,
+    serverTimestamp,
+    query,
+    orderBy,
+    addDoc
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-          <div class="btn-row">
-            <button type="submit" class="btn-primary">Calcular precio</button>
-            <button type="button" class="btn-ok" onclick="confirmTrip()">Confirmar viaje</button>
-            <button type="button" class="btn-danger" onclick="togglePanicMenu()">Panico</button>
-            <button type="button" class="btn-dark" onclick="finishTrip()">Finalizar viaje</button>
-          </div>
-        </form>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCLsXToNPBwNB3T62KueJHYzMkY7g1W-34",
+    authDomain: "control-viajes-a09a9.firebaseapp.com",
+    projectId: "control-viajes-a09a9",
+    storageBucket: "control-viajes-a09a9.firebasestorage.app",
+    messagingSenderId: "895245177594",
+    appId: "1:895245177594:web:036547aaba4d0460ec2f43"
+  };
 
-        <details id="panicMenu" class="toggle-panel">
-          <summary class="panic-summary">Panico <span>+</span></summary>
-          <div class="sub-actions">
-            <button type="button" class="btn-danger" onclick="sendPanic('robo')">Alerta roja por robo</button>
-            <button type="button" class="btn-danger" onclick="showBreakdownForm()">Alerta por desperfecto</button>
-            <button type="button" class="btn-danger" onclick="sendPanic('combustible')">Alerta por bajo combustible</button>
-          </div>
-          <div id="breakdownForm" class="hide" style="margin-top:12px;">
-            <label>Tipo de desperfecto</label> 
-            <textarea id="breakdownType" placeholder="Ej: llanta ponchada, motor, bateria..."></textarea>
-            <div class 
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const $ = (id) => document.getElementById(id);
+
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#39;");
+  }
+
+  // =========================
+  // Login del dueño
+  // =========================
+  let choferAppUrlCache = "";
+
+  async function ownerLogin(){
+    const code = String($("ownerCode").value ?? "").trim();
+    if(!code){
+      alert("Ingresá el código de acceso.");
+      return;
+    }
+
+    try{
+      const ref = doc(db, "config", "owner");
+      const snap = await getDoc(ref);
+
+      if(!snap.exists()){
+        // Primera vez: no hay código configurado, lo creamos con lo que acaba de escribir.
+        if(!confirm(`No hay un código configurado todavía. ¿Usar "${code}" como tu código de acceso?`)) return;
+        await setDoc(ref, { code, updatedAt: serverTimestamp() });
+        openOwnerApp();
+        return;
+      }
+
+      const data = snap.data();
+      if(String(data.code ?? "") !== code){
+        alert("Código incorrecto.");
+        return;
+      }
+
+      openOwnerApp();
+    }catch(e){
+      console.error(e);
+      alert("No se pudo verificar el código: " + (e?.message || e));
+    }
+  }
+
+  function openOwnerApp(){
+    $("ownerLoginCard").classList.add("hide");
+    $("ownerApp").classList.remove("hide");
+    $("ownerCode").value = "";
+
+    initMap();
+    startListeners();
+    loadSettings();
+    loadChoferAppUrl();
+  }
+
+  async function changeOwnerCode(){
+    const current = prompt("Ingresá el código actual para confirmar:");
+    if(current == null) return;
+
+    try{
+      const ref = doc(db, "config", "owner");
+      const snap = await getDoc(ref);
+      const currentCode = snap.exists() ? String(snap.data().code ?? "") : "";
+
+      if(current !== currentCode){
+        alert("Código actual incorrecto.");
+        return;
+      }
+
+      const nuevo = prompt("Ingresá el nuevo código:");
+      if(!nuevo) return;
+
+      await setDoc(ref, { code: nuevo.trim(), updatedAt: serverTimestamp() }, { merge: true });
+      alert("Código actualizado.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo cambiar el código: " + (e?.message || e));
+    }
+  }
+
+  async function loadChoferAppUrl(){
+    try{
+      const snap = await getDoc(doc(db, "config", "app"));
+      if(snap.exists()){
+        choferAppUrlCache = snap.data().chofer_url || "";
+        $("choferAppUrl").value = choferAppUrlCache;
+      }
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  async function saveChoferAppUrl(){
+    const url = String($("choferAppUrl").value ?? "").trim();
+    if(!url){
+      alert("Pegá la URL de chofer.html primero.");
+      return;
+    }
+
+    try{
+      await setDoc(doc(db, "config", "app"), { chofer_url: url, updatedAt: serverTimestamp() }, { merge: true });
+      choferAppUrlCache = url;
+      alert("Link guardado.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo guardar el link: " + (e?.message || e));
+    }
+  }
+
+  // =========================
+  // Mapa
+  // =========================
+  let map = null;
+  let markerByDriver = {};
+
+  function initMap(){
+    map = L.map('map').setView([-34.6037, -58.3816], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+  }
+
+  function upsertDriverMarker(driverId, lat, lng, label){
+    if(!map || lat == null || lng == null) return;
+    const key = String(driverId);
+    if(!markerByDriver[key]){
+      markerByDriver[key] = L.marker([lat, lng]).addTo(map);
+    } else {
+      markerByDriver[key].setLatLng([lat, lng]);
+    }
+    markerByDriver[key].bindPopup(label || key);
+  }
+
+  // =========================
+  // Precios
+  // =========================
+  async function saveSettings(){
+    const data = {
+      baseFare: Number($("baseFare").value || 0),
+      km: {
+        North: Number($("kmNorth").value || 0),
+        South: Number($("kmSouth").value || 0),
+        Center: Number($("kmCenter").value || 0),
+      },
+      hour: {
+        North: Number($("hourNorth").value || 0),
+        South: Number($("hourSouth").value || 0),
+        Center: Number($("hourCenter").value || 0),
+      },
+      zone: {
+        A: Number($("zoneA").value || 0),
+        B: Number($("zoneB").value || 0),
+        C: Number($("zoneC").value || 0),
+      },
+      updatedAt: serverTimestamp()
+    };
+
+    try{
+      await setDoc(doc(db, "prices", "active"), data, { merge: true });
+      alert("Precios activos guardados.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudieron guardar los precios: " + (e?.message || e));
+    }
+  }
+
+  async function loadSettings(){
+    const snap = await getDoc(doc(db, "prices", "active"));
+    if(!snap.exists()) return;
+    const p = snap.data();
+
+    $("baseFare").value = p.baseFare ?? 0;
+
+    $("kmNorth").value = p?.km?.North ?? 0;
+    $("kmSouth").value = p?.km?.South ?? 0;
+    $("kmCenter").value = p?.km?.Center ?? 0;
+
+    $("hourNorth").value = p?.hour?.North ?? 0;
+    $("hourSouth").value = p?.hour?.South ?? 0;
+    $("hourCenter").value = p?.hour?.Center ?? 0;
+
+    $("zoneA").value = p?.zone?.A ?? 0;
+    $("zoneB").value = p?.zone?.B ?? 0;
+    $("zoneC").value = p?.zone?.C ?? 0;
+  }
+
+  // =========================
+  // Choferes
+  // =========================
+  function normalizeName(s){ return String(s ?? "").trim(); }
+
+  async function saveDriver(){
+    const name = normalizeName($("driverName").value);
+    const lastName = normalizeName($("driverLastName").value);
+    const code = String($("driverCode").value ?? "").trim();
+    const sector = normalizeName($("driverSector").value);
+
+    if(!name || !lastName || !code){
+      alert("Completá Nombre, Apellido y Codigo.");
+      return;
+    }
+
+    const driverId = `${name.toLowerCase()}_${lastName.toLowerCase()}_${Date.now()}`;
+
+    try{
+      await setDoc(doc(db, "drivers", driverId), {
+        driverId,
+        name,
+        lastName,
+        code,
+        sector: sector || "",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      $("driverName").value = "";
+      $("driverLastName").value = "";
+      $("driverCode").value = "";
+      $("driverSector").value = "";
+
+      alert("Chofer guardado.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo guardar el chofer: " + (e?.message || e));
+    }
+  }
+
+  async function deleteDriver(driverId){
+    if(!driverId) return;
+    if(!confirm("¿Borrar este chofer?")) return;
+
+    try{
+      await deleteDoc(doc(db, "drivers", driverId));
+      alert("Chofer borrado.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo borrar el chofer: " + (e?.message || e));
+    }
+  }
+
+  // =========================
+  // Caches (para exportar / compartir)
+  // =========================
+  let driversCache = [];
+  let activeAlertsCache = [];
+  let resolvedAlertsCache = [];
+  let tripsCache = [];
+
+  function renderDrivers(drivers){
+    driversCache = drivers;
+    const list = $("driversList");
+    list.innerHTML = "";
+
+    if(!drivers.length){
+      list.innerHTML = `<div class="mini">Aún no hay choferes.</div>`;
+      return;
+    }
+
+    for(const d of drivers){
+      const el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML = `
+        <div>
+          <strong>${escapeHtml(d.name)} ${escapeHtml(d.lastName)}</strong>
+          <div><small>Sector: ${escapeHtml(d.sector || "-")}</small></div>
+          <div><small>Id: ${escapeHtml(d.driverId || "-")}</small></div>
+        </div>
+        <div class="row">
+          <button class="btn-ok" type="button" onclick="shareDriverWhatsApp('${escapeHtml(d.driverId || "")}')">Enviar WhatsApp</button>
+          <button class="btn-danger" type="button" onclick="deleteDriver('${escapeHtml(d.driverId || "")}')">Borrar</button>
+        </div>
+      `;
+      list.appendChild(el);
+    }
+  }
+
+  // =========================
+  // Pánico (botones)
+  // =========================
+  async function sendPanic(type){
+  try{
+    if(!type) return;
+
+    const payload = {
+      type,
+      message: `Alerta de ${type}`,
+      createdAt: serverTimestamp(),
+      resolved: false
+    };
+
+    await addDoc(collection(db, "alerts"), payload);
+    alert("Alerta enviada al dueño.");
+  }catch(e){
+    console.error(e);
+    alert("No se pudo enviar la alerta. Revisá consola.");
+  }
+}
+
+  function panicRobbery(){ return sendPanic("robo"); }
+  function panicBreakdown(){ return showBreakdownForm(); }
+  function panicLowFuel(){ return sendPanic("poco_combustible"); }
+  function panicOffRoute(){ return sendPanic("fuera_de_ruta"); }
+
+  function showBreakdownForm(){
+    const reason = prompt("¿Qué pasó? (Ej: pincho, motor, etc.)");
+    if(!reason) return;
+    return sendPanic("ruptura: " + reason);
+  }
+
+  // =========================
+  // Alertas (render + resueltas)
+  // =========================
+  function renderAlerts(alerts, resolved=false){
+    if(resolved){ resolvedAlertsCache = alerts; } else { activeAlertsCache = alerts; }
+    const target = resolved ? $("resolvedList") : $("alertsList");
+    target.innerHTML = "";
+
+    if(!alerts.length){
+      target.innerHTML = `<div class="mini">${resolved ? "Sin historial aún." : "Sin alertas activas."}</div>`;
+      return;
+    }
+
+    for(const a of alerts){
+      const el = document.createElement("div");
+      el.className = "item";
+      const type = a?.type || "-";
+      const msg = a?.message || "";
+      const status = resolved ? "Resuelta" : "Activa";
+
+      el.innerHTML = `
+        <div>
+          <strong>${escapeHtml(type)} (${status})</strong>
+          <div><small>${escapeHtml(msg)}</small></div>
+          <div><small>Chofer: ${escapeHtml(a?.driverName || "-")}</small></div>
+          <div><small>Trip: ${escapeHtml(a?.tripId || "-")}</small></div>
+        </div>
+        <div class="row">
+          ${resolved ? "" : `<button class="btn-ok" type="button" onclick="resolveAlert('${escapeHtml(a?.alertId || "")}')">Marcar resuelta</button>`}
+        </div>
+      `;
+      target.appendChild(el);
+    }
+  }
+
+  async function resolveAlert(alertId){
+    if(!alertId) return;
+
+    const srcRef = doc(db, "alerts", alertId);
+    const snap = await getDoc(srcRef);
+    if(!snap.exists()){
+      alert("No se encontró la alerta.");
+      return;
+    }
+
+    const data = snap.data();
+
+    await setDoc(doc(db, "alertsResolved", alertId), {
+      ...data,
+      resolvedAt: serverTimestamp(),
+      resolved: true
+    });
+
+    await deleteDoc(srcRef);
+    alert("Alerta marcada como resuelta.");
+  }
+
+  async function clearAlerts(){
+    if(!activeAlertsCache.length){
+      alert("No hay alertas activas para borrar.");
+      return;
+    }
+    if(!confirm(`¿Borrar las ${activeAlertsCache.length} alertas activas? Esta acción no se puede deshacer.`)) return;
+
+    try{
+      await Promise.all(
+        activeAlertsCache.map(a => deleteDoc(doc(db, "alerts", a.alertId)))
+      );
+      alert("Alertas activas borradas.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudieron borrar todas las alertas: " + (e?.message || e));
+    }
+  }
+
+  async function clearHistory(){
+    if(!resolvedAlertsCache.length){
+      alert("No hay historial para borrar.");
+      return;
+    }
+    if(!confirm(`¿Borrar las ${resolvedAlertsCache.length} alertas del historial? Esta acción no se puede deshacer.`)) return;
+
+    try{
+      await Promise.all(
+        resolvedAlertsCache.map(a => deleteDoc(doc(db, "alertsResolved", a.alertId)))
+      );
+      alert("Historial borrado.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo borrar el historial: " + (e?.message || e));
+    }
+  }
+
+  // =========================
+  // Viajes (vista rápida)
+  // =========================
+  function renderTrips(trips){
+    tripsCache = trips;
+    const list = $("tripsList");
+    list.innerHTML = "";
+
+    if(!trips.length){
+      list.innerHTML = `<div class="mini">Aún no hay viajes.</div>`;
+      return;
+    }
+
+    for(const t of trips){
+      const el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML = `
+        <div>
+          <strong>Trip ${escapeHtml(t.tripId || "-")}</strong>
+          <div><small>Estado: ${escapeHtml(t.status || "-")}</small></div>
+          <div><small>Chofer: ${escapeHtml(t.driverName || "-")}</small></div>
+          <div><small>Precio: $${escapeHtml(t.price != null ? String(t.price) : "0")}</small></div>
+        </div>
+      `;
+      list.appendChild(el);
+    }
+  }
+
+  // =========================
+  // Listeners (Firestore)
+  // =========================
+  function startListeners(){
+    onSnapshot(collection(db, "drivers"), (snap) => {
+      const drivers = snap.docs.map(d => ({ driverId: d.id, ...d.data() }));
+      renderDrivers(drivers);
+    }, (e) => { console.error("drivers listener:", e); alert("No se pudo leer choferes: " + (e?.message || e)); });
+
+    onSnapshot(collection(db, "alerts"), (snap) => {
+      const alerts = snap.docs.map(d => ({ alertId: d.id, ...d.data() }));
+      renderAlerts(alerts, false);
+    }, (e) => { console.error("alerts listener:", e); alert("No se pudo leer alertas: " + (e?.message || e)); });
+
+    onSnapshot(collection(db, "alertsResolved"), (snap) => {
+      const alerts = snap.docs.map(d => ({ alertId: d.id, ...d.data() }));
+      renderAlerts(alerts, true);
+    }, (e) => { console.error("alertsResolved listener:", e); });
+
+    onSnapshot(collection(db, "trips"), (snap) => {
+      const trips = snap.docs.map(d => ({ tripId: d.id, ...d.data() }));
+      renderTrips(trips);
+    }, (e) => { console.error("trips listener:", e); });
+
+    onSnapshot(collection(db, "driverLocations"), (snap) => {
+      snap.docs.forEach(d => {
+        const data = d.data() || {};
+        const driverId = d.id;
+        const lat = data.lat;
+        const lng = data.lng;
+        const label = data.label || data.driverName || driverId;
+        upsertDriverMarker(driverId, lat, lng, label);
+      });
+    }, (e) => { console.error("driverLocations listener:", e); });
+  }
+
+  // =========================
+  // Export / Share
+  // =========================
+  function downloadTextFile(filename, content, mime){
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function csvEscape(v){
+    const s = String(v ?? "");
+    if(/[",\n]/.test(s)) return `"${s.replaceAll('"','""')}"`;
+    return s;
+  }
+
+  function exportDriversCSV(){
+    if(!driversCache.length){
+      alert("No hay choferes para exportar.");
+      return;
+    }
+    const header = ["Nombre","Apellido","Sector","Id"];
+    const rows = driversCache.map(d => [d.name, d.lastName, d.sector || "", d.driverId || ""]);
+    const csv = [header, ...rows].map(r => r.map(csvEscape).join(",")).join("\n");
+    downloadTextFile("choferes.csv", "\uFEFF" + csv, "text/csv;charset=utf-8;");
+  }
+
+  function shareDriverWhatsApp(driverId){
+    const d = driversCache.find(x => x.driverId === driverId);
+    if(!d){
+      alert("No se encontró el chofer.");
+      return;
+    }
+    if(!choferAppUrlCache){
+      alert("Antes configurá el link de la app del chofer en 'Configuración' (abajo de todo) y guardalo.");
+      return;
+    }
+    const text =
+      `Hola ${d.name}! Estos son tus datos para ingresar a la app de choferes:\n\n` +
+      `Nombre: ${d.name}\n` +
+      `Apellido: ${d.lastName}\n` +
+      `Código: ${d.code}\n\n` +
+      `Ingresá acá: ${choferAppUrlCache}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  }
+
+  function shareDriversWhatsApp(){
+    if(!driversCache.length){
+      alert("No hay choferes para compartir.");
+      return;
+    }
+    const lines = driversCache.map(d => `- ${d.name} ${d.lastName}${d.sector ? " (" + d.sector + ")" : ""}`);
+    const text = `Choferes registrados (${driversCache.length}):\n` + lines.join("\n");
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  }
+
+  function exportReportPDF(){
+    if(!tripsCache.length){
+      alert("No hay viajes para exportar.");
+      return;
+    }
+
+    const rows = tripsCache.map(t => `
+      <tr>
+        <td>${escapeHtml(t.tripId || "-")}</td>
+        <td>${escapeHtml(t.driverName || "-")}</td>
+        <td>${escapeHtml(t.status || "-")}</td>
+        <td>${escapeHtml(t.from || "-")}</td>
+        <td>${escapeHtml(t.to || "-")}</td>
+        <td>$${escapeHtml(t.price != null ? String(t.price) : "0")}</td>
+      </tr>
+    `).join("");
+
+    const html = `
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Reporte de viajes</title>
+        <style>
+          body{font-family:Arial,sans-serif;padding:20px}
+          h1{font-size:20px}
+          table{width:100%;border-collapse:collapse;margin-top:14px}
+          th,td{border:1px solid #ccc;padding:8px;font-size:13px;text-align:left}
+          th{background:#eee}
+        </style>
+      </head>
+      <body>
+        <h1>Reporte de viajes - Control Viajes</h1>
+        <p>Generado: ${new Date().toLocaleString()}</p>
+        <table>
+          <thead>
+            <tr><th>Trip</th><th>Chofer</th><th>Estado</th><th>Desde</th><th>Hasta</th><th>Precio</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const win = window.open("", "_blank");
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
+  // =========================
+  // Exponer funciones para onclick
+  // =========================
+  window.saveDriver = saveDriver;
+  window.deleteDriver = deleteDriver;
+  window.saveSettings = saveSettings;
+  window.clearAlerts = clearAlerts;
+  window.clearHistory = clearHistory;
+  window.resolveAlert = resolveAlert;
+
+  // Botones de pánico (por si los tenés en el dueño)
+  window.sendPanic = sendPanic;
+  window.panicRobbery = panicRobbery;
+  window.panicBreakdown = panicBreakdown;
+  window.panicLowFuel = panicLowFuel;
+  window.panicOffRoute = panicOffRoute;
+  window.showBreakdownForm = showBreakdownForm;
+
+  window.exportDriversCSV = exportDriversCSV;
+  window.exportReportPDF = exportReportPDF;
+  window.shareDriversWhatsApp = shareDriversWhatsApp;
+  window.shareDriverWhatsApp = shareDriverWhatsApp;
+
+  window.ownerLogin = ownerLogin;
+  window.changeOwnerCode = changeOwnerCode;
+  window.saveChoferAppUrl = saveChoferAppUrl;
+</script>
+
+</body>
+</html>

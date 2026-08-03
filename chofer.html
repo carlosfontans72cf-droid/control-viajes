@@ -202,6 +202,7 @@
   // =========================
   let driver = null; // {driverId, name, lastName, code, sector}
   let gpsWatchId = null;
+  let cityContext = ""; // ciudad/provincia cargada por el dueño, se agrega a cada búsqueda de dirección
 
   let currentPos = null; // {lat,lng,ts}
   let trip = null; // {tripId, from, to, pricingMode, zone, price, status, startedAt, endedAt, fromLatLng, toLatLng, route}
@@ -259,14 +260,26 @@
   // =========================
   // Para no depender de servicios pagos, hacemos geocoding con Nominatim.
   // Si no querés usarlo, decime y lo cambiamos a coordenadas manuales.
+  async function loadCityContext(){
+    try{
+      const snap = await getDoc(doc(db, "config", "app"));
+      if(snap.exists()){
+        cityContext = snap.data().city_context || "";
+      }
+    }catch(e){
+      console.error("No se pudo cargar la ciudad de referencia", e);
+    }
+  }
+
   async function geocodeAddress(address){
-    const q = encodeURIComponent(address);
+    const fullAddress = cityContext ? `${address}, ${cityContext}` : address;
+    const q = encodeURIComponent(fullAddress);
     // Nominatim: https://nominatim.openstreetmap.org
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`;
     const res = await fetch(url, { headers: { "Accept": "application/json" }});
     if(!res.ok) throw new Error("Geocoding falló");
     const arr = await res.json();
-    if(!arr || !arr.length) throw new Error("No se encontró ubicación");
+    if(!arr || !arr.length) throw new Error(`No se encontró la dirección "${fullAddress}". Probá con más detalle (número, calle completa) o revisá que el dueño haya cargado la Ciudad/Provincia en Configuración.`);
     const item = arr[0];
     return { lat: Number(item.lat), lng: Number(item.lon) };
   }
@@ -366,6 +379,7 @@
 
       initMap();
       startGPS();
+      loadCityContext();
     }catch(e){
       console.error(e);
       alert("No se pudo ingresar. Revisá consola.");

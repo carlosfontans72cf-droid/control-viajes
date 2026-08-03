@@ -191,9 +191,13 @@
             <label>Link de la app del chofer (para compartir por WhatsApp)</label>
             <input type="text" id="choferAppUrl" placeholder="https://tu-hosting.com/chofer.html">
           </div>
+          <div class="full">
+            <label>Ciudad / Provincia (mejora la búsqueda de direcciones)</label>
+            <input type="text" id="cityContext" placeholder="Ej: Santa Vitória do Palmar, RS, Brasil">
+          </div>
         </div>
         <div class="btn-row">
-          <button type="button" class="btn-primary" onclick="saveChoferAppUrl()">Guardar link</button>
+          <button type="button" class="btn-primary" onclick="saveChoferAppUrl()">Guardar configuración</button>
           <button type="button" class="btn-dark" onclick="changeOwnerCode()">Cambiar código de acceso</button>
         </div>
       </div>
@@ -318,8 +322,10 @@
     try{
       const snap = await getDoc(doc(db, "config", "app"));
       if(snap.exists()){
-        choferAppUrlCache = snap.data().chofer_url || "";
+        const data = snap.data();
+        choferAppUrlCache = data.chofer_url || "";
         $("choferAppUrl").value = choferAppUrlCache;
+        $("cityContext").value = data.city_context || "";
       }
     }catch(e){
       console.error(e);
@@ -328,18 +334,23 @@
 
   async function saveChoferAppUrl(){
     const url = String($("choferAppUrl").value ?? "").trim();
+    const city = String($("cityContext").value ?? "").trim();
     if(!url){
       alert("Pegá la URL de chofer.html primero.");
       return;
     }
+    if(!city){
+      alert("Completá también la Ciudad/Provincia, para que las direcciones se encuentren bien.");
+      return;
+    }
 
     try{
-      await setDoc(doc(db, "config", "app"), { chofer_url: url, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, "config", "app"), { chofer_url: url, city_context: city, updatedAt: serverTimestamp() }, { merge: true });
       choferAppUrlCache = url;
-      alert("Link guardado.");
+      alert("Configuración guardada.");
     }catch(e){
       console.error(e);
-      alert("No se pudo guardar el link: " + (e?.message || e));
+      alert("No se pudo guardar la configuración: " + (e?.message || e));
     }
   }
 

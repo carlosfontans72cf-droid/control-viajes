@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+  <!-- Google Maps JavaScript API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDHaXG7Dvimi3zuJ7NG_WEFF2hCOFgOlNc&libraries=geometry"></script>
+
   <style>
     :root{--bg:#0b0b0f;--panel:#15151d;--panel2:#101018;--gold:#d4af37;--gold2:#f1d77a;--text:#f5f5f5;--muted:#b7b7b7;--line:#2a2a35;--danger:#dc2626;--ok:#16a34a;--info:#2563eb}
     *{box-sizing:border-box}
@@ -137,7 +140,7 @@
           <button class="btn-ok" type="button" onclick="finishTrip()" id="btnFinishTrip" disabled>Finalizar viaje</button>
         </div>
 
-        <div class="mini">Cuando el cliente acepta, tocás “Comenzar viaje”.</div>
+        <div class="mini">Cuando el cliente acepta, tocás “Comenzar viaje” → se abre Google Maps Navigation.</div>
       </div>
 
       <div class="panel-box" style="border-color:rgba(220,38,38,.35)">
@@ -149,10 +152,7 @@
           <button class="btn-danger" type="button" onclick="panicLowFuel()">3) Alerta de poco combustible</button>
           <button class="btn-danger" type="button" onclick="panicOffRoute()">4) Alerta fuera de ruta</button>
         </div>
-
-        <div class="mini" style="margin-top:10px">
-          Para “ruptura” te voy a pedir: qué pasó (pincho, motor, etc.).
-        </div>
+        <div class="mini" style="margin-top:10px">Para “ruptura” te voy a pedir: qué pasó (pincho, motor, etc.).</div>
       </div>
 
       <div class="map-box">
@@ -171,18 +171,9 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
-    getFirestore,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    setDoc,
-    addDoc,
-    updateDoc,
-    serverTimestamp
+    getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-  // TU CONFIG (tu bloque)
   const firebaseConfig = {
     apiKey: "AIzaSyCLsXToNPBwNB3T62KueJHYzMkY7g1W-34",
     authDomain: "control-viajes-a09a9.firebaseapp.com",
@@ -194,34 +185,24 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-
   const $ = (id) => document.getElementById(id);
-
-  // =========================
-  // Google Maps API Key
-  // =========================
-  const GOOGLE_MAPS_KEY = "AIzaSyDHaXG7Dvimi3zuJ7NG_WEFF2hCOFgOlNc";
 
   // =========================
   // Estado
   // =========================
   let driver = null;
-  let gpsWatchId = null;
   let cityContext = "";
-
   let currentPos = null;
   let trip = null;
-  let activePrice = 0;
   let canStart = false;
 
-  // Fuera de ruta
   const OFFROUTE_METERS = 200;
   let offRouteTriggered = false;
   let routePolyline = null;
   let lastRouteCheckAt = 0;
 
   // =========================
-  // Mapa (Leaflet)
+  // Mapa Leaflet
   // =========================
   let map = null;
   let marker = null;
@@ -251,112 +232,68 @@
     }
   }
 
-  function setTripPill(text){
-    $("tripPill").textContent = "Viaje: " + text;
-  }
-
-  function setMonitor(text){
-    $("monitorText").textContent = text;
-  }
+  function setTripPill(text){ $("tripPill").textContent = "Viaje: " + text; }
+  function setMonitor(text){ $("monitorText").textContent = text; }
 
   // =========================
-  // Geocoding con Google
+  // Geocoding con Google JS
   // =========================
   async function loadCityContext(){
     try{
       const snap = await getDoc(doc(db, "config", "app"));
-      if(snap.exists()){
-        cityContext = snap.data().city_context || "";
-      }
-    }catch(e){
-      console.error("No se pudo cargar la ciudad de referencia", e);
-    }
+      if(snap.exists()) cityContext = snap.data().city_context || "";
+    }catch(e){ console.error(e); }
   }
 
-  async function geocodeAddress(address){
-    const fullAddress = cityContext ? `${address}, ${cityContext}` : address;
-    const q = encodeURIComponent(fullAddress);
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${GOOGLE_MAPS_KEY}`;
+  function geocodeAddress(address){
+    return new Promise((resolve, reject) => {
+      const fullAddress = cityContext ? `${address}, ${cityContext}` : address;
+      const geocoder = new google.maps.Geocoder();
 
-    const res = await fetch(url);
-    if(!res.ok) throw new Error("Geocoding falló (Google)");
-    const data = await res.json();
-
-    if(data.status !== "OK" || !data.results?.length){
-      throw new Error(`No se encontró la dirección "${fullAddress}". Probá con más detalle.`);
-    }
-
-    const loc = data.results[0].geometry.location;
-    return { lat: loc.lat, lng: loc.lng };
+      geocoder.geocode({ address: fullAddress }, (results, status) => {
+        if(status === "OK" && results[0]){
+          const loc = results[0].geometry.location;
+          resolve({ lat: loc.lat(), lng: loc.lng() });
+        } else {
+          reject(new Error(`No se encontró la dirección "${fullAddress}"`));
+        }
+      });
+    });
   }
 
   // =========================
-  // Ruta con Google Directions
+  // Ruta con Google DirectionsService
   // =========================
-  async function fetchRouteGoogle(fromLatLng, toLatLng){
-    const origin = `${fromLatLng.lat},${fromLatLng.lng}`;
-    const destination = `${toLatLng.lat},${toLatLng.lng}`;
+  function fetchRouteGoogle(fromLatLng, toLatLng){
+    return new Promise((resolve, reject) => {
+      const directionsService = new google.maps.DirectionsService();
 
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&mode=driving&key=${GOOGLE_MAPS_KEY}`;
-
-    const res = await fetch(url);
-    if(!res.ok) throw new Error("Directions falló (Google)");
-    const data = await res.json();
-
-    if(data.status !== "OK" || !data.routes?.length){
-      throw new Error("No se pudo obtener la ruta con Google: " + (data.status || "error"));
-    }
-
-    const encoded = data.routes[0].overview_polyline.points;
-    const poly = decodePolyline(encoded);
-
-    // También devolvemos la distancia en metros si está disponible
-    const distanceMeters = data.routes[0].legs?.[0]?.distance?.value || 0;
-
-    return { poly, distanceMeters };
+      directionsService.route({
+        origin: new google.maps.LatLng(fromLatLng.lat, fromLatLng.lng),
+        destination: new google.maps.LatLng(toLatLng.lat, toLatLng.lng),
+        travelMode: google.maps.TravelMode.DRIVING
+      }, (result, status) => {
+        if(status === "OK" && result.routes[0]){
+          const route = result.routes[0];
+          const path = route.overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
+          const distanceMeters = route.legs[0].distance.value;
+          resolve({ poly: path, distanceMeters });
+        } else {
+          reject(new Error("No se pudo obtener la ruta: " + status));
+        }
+      });
+    });
   }
 
-  // Decodificar polilínea de Google
-  function decodePolyline(encoded) {
-    let index = 0, lat = 0, lng = 0;
-    const coordinates = [];
-    const len = encoded.length;
-
-    while (index < len) {
-      let b, shift = 0, result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      coordinates.push({ lat: lat / 1e5, lng: lng / 1e5 });
-    }
-    return coordinates;
-  }
-
-  // Distancia punto a punto
   function haversineMeters(a, b){
     const R = 6371000;
-    const toRad = (x)=>x*Math.PI/180;
+    const toRad = x => x * Math.PI / 180;
     const dLat = toRad(b.lat - a.lat);
     const dLng = toRad(b.lng - a.lng);
     const lat1 = toRad(a.lat);
     const lat2 = toRad(b.lat);
     const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
-    return 2*R*Math.asin(Math.sqrt(s));
+    return 2 * R * Math.asin(Math.sqrt(s));
   }
 
   function closestDistanceToPolylineMeters(point, poly){
@@ -368,18 +305,12 @@
     return min;
   }
 
-  // =========================
-  // Firestore: precios activos
-  // =========================
   async function getActivePrices(){
     const snap = await getDoc(doc(db, "prices", "active"));
     if(!snap.exists()) throw new Error("No hay precios activos cargados por el dueño.");
     return snap.data();
   }
 
-  // =========================
-  // Login
-  // =========================
   function normalizeName(s){ return String(s ?? "").trim(); }
 
   async function login(){
@@ -398,10 +329,9 @@
 
       snap.forEach(d => {
         const data = d.data();
-        const sameName = String(data.name ?? "").trim().toLowerCase() === name.toLowerCase();
-        const sameLastName = String(data.lastName ?? "").trim().toLowerCase() === lastName.toLowerCase();
-        const sameCode = String(data.code ?? "").trim() === code;
-        if(sameName && sameLastName && sameCode){
+        if(String(data.name ?? "").trim().toLowerCase() === name.toLowerCase() &&
+           String(data.lastName ?? "").trim().toLowerCase() === lastName.toLowerCase() &&
+           String(data.code ?? "").trim() === code){
           found = { driverId: d.id, ...data };
         }
       });
@@ -421,22 +351,19 @@
       loadCityContext();
     }catch(e){
       console.error(e);
-      alert("No se pudo ingresar. Revisá consola.");
+      alert("No se pudo ingresar.");
     }
   }
 
   function zoneKeyFromSelect(zone){
-    const map = { A: "North", B: "South", C: "Center" };
-    return map[zone] || "North";
+    return { A: "North", B: "South", C: "Center" }[zone] || "North";
   }
 
   function drawRoute(poly){
     if(!routeLayer || !map) return;
     const latlngs = poly.map(p => [p.lat, p.lng]);
     routeLayer.setLatLngs(latlngs);
-    if(latlngs.length){
-      map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
-    }
+    if(latlngs.length) map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
   }
 
   // =========================
@@ -458,7 +385,6 @@
 
     try{
       const prices = await getActivePrices();
-
       const fromLatLng = await geocodeAddress(fromAddress);
       const toLatLng = await geocodeAddress(toAddress);
 
@@ -470,7 +396,7 @@
         poly = result.poly;
         km = result.distanceMeters / 1000;
       }catch(e){
-        console.error("Google Directions falló, uso distancia directa", e);
+        console.error("Directions falló, uso distancia directa", e);
         poly = [fromLatLng, toLatLng];
         km = haversineMeters(fromLatLng, toLatLng) / 1000;
       }
@@ -478,18 +404,14 @@
       let price = Number(prices.baseFare || 0);
 
       if(mode === "km"){
-        const rate = Number(prices?.km?.[zoneKeyFromSelect(zone)] || 0);
-        price += rate * km;
+        price += Number(prices?.km?.[zoneKeyFromSelect(zone)] || 0) * km;
       } else if(mode === "hour"){
-        const rate = Number(prices?.hour?.[zoneKeyFromSelect(zone)] || 0);
-        price += rate * hoursEstimate;
+        price += Number(prices?.hour?.[zoneKeyFromSelect(zone)] || 0) * hoursEstimate;
       } else if(mode === "zone"){
-        const rate = Number(prices?.zone?.[zone] || 0);
-        price += rate;
+        price += Number(prices?.zone?.[zone] || 0);
       }
 
       price = Math.round(price * 100) / 100;
-      activePrice = price;
       $("priceEstimate").textContent = String(price);
 
       routePolyline = poly;
@@ -522,7 +444,7 @@
   }
 
   // =========================
-  // Comenzar / Finalizar viaje
+  // Comenzar viaje + abrir Google Maps Navigation
   // =========================
   async function startTrip(){
     if(!driver || !trip || !canStart){
@@ -551,6 +473,14 @@
       setTripPill("en curso");
       $("btnStartTrip").disabled = true;
       $("btnFinishTrip").disabled = false;
+
+      // Abrir Google Maps Navigation
+      const origin = `${trip.fromLatLng.lat},${trip.fromLatLng.lng}`;
+      const destination = `${trip.toLatLng.lat},${trip.toLatLng.lng}`;
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+
+      window.open(mapsUrl, "_blank");
+
     }catch(e){
       console.error(e);
       alert("No se pudo comenzar el viaje.");
@@ -599,11 +529,9 @@
       return;
     }
 
-    gpsWatchId = navigator.geolocation.watchPosition(
-      onGpsUpdate,
-      onGpsError,
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-    );
+    navigator.geolocation.watchPosition(onGpsUpdate, onGpsError, {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 15000
+    });
   }
 
   function onGpsError(err){
@@ -617,7 +545,6 @@
     currentPos = { lat, lng, ts: Date.now() };
 
     setGpsPill(true);
-
     if(marker) marker.setLatLng([lat, lng]);
     if(map && !trip) map.panTo([lat, lng]);
 
@@ -628,16 +555,11 @@
         label: `${driver.name} ${driver.lastName}`,
         updatedAt: serverTimestamp()
       }, { merge: true });
-    }catch(e){
-      console.error("No se pudo actualizar ubicación", e);
-    }
+    }catch(e){ console.error(e); }
 
     checkOffRoute(currentPos);
   }
 
-  // =========================
-  // Fuera de ruta (automático)
-  // =========================
   function checkOffRoute(pos){
     if(!routePolyline || !routePolyline.length || offRouteTriggered) return;
 
@@ -667,7 +589,7 @@
     try{
       if(!driver){ alert("Iniciá sesión primero."); return; }
 
-      const payload = {
+      await addDoc(collection(db, "alerts"), {
         type,
         message: extraMessage || `Alerta de ${type}`,
         driverId: driver.driverId,
@@ -675,13 +597,11 @@
         tripId: trip?.tripId || "",
         createdAt: serverTimestamp(),
         resolved: false
-      };
-
-      await addDoc(collection(db, "alerts"), payload);
+      });
       alert("Alerta enviada al dueño.");
     }catch(e){
       console.error(e);
-      alert("No se pudo enviar la alerta. Revisá consola.");
+      alert("No se pudo enviar la alerta.");
     }
   }
 
@@ -696,9 +616,6 @@
     return sendPanic("ruptura: " + reason, `Ruptura: ${reason}`);
   }
 
-  // =========================
-  // Exponer funciones para onclick
-  // =========================
   window.login = login;
   window.calculatePrice = calculatePrice;
   window.startTrip = startTrip;

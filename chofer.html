@@ -198,21 +198,26 @@
   const $ = (id) => document.getElementById(id);
 
   // =========================
+  // Google Maps API Key
+  // =========================
+  const GOOGLE_MAPS_KEY = "AIzaSyDHaXG7Dvimi3zuJ7NG_WEFF2hCOFgOlNc";
+
+  // =========================
   // Estado
   // =========================
-  let driver = null; // {driverId, name, lastName, code, sector}
+  let driver = null;
   let gpsWatchId = null;
-  let cityContext = ""; // ciudad/provincia cargada por el dueño, se agrega a cada búsqueda de dirección
+  let cityContext = "";
 
-  let currentPos = null; // {lat,lng,ts}
-  let trip = null; // {tripId, from, to, pricingMode, zone, price, status, startedAt, endedAt, fromLatLng, toLatLng, route}
+  let currentPos = null;
+  let trip = null;
   let activePrice = 0;
   let canStart = false;
 
   // Fuera de ruta
   const OFFROUTE_METERS = 200;
   let offRouteTriggered = false;
-  let routePolyline = null; // array of {lat,lng}
+  let routePolyline = null;
   let lastRouteCheckAt = 0;
 
   // =========================
@@ -223,15 +228,14 @@
   let routeLayer = null;
 
   function initMap(){
-    map = L.map('map').setView([-34.6037, -58.3816], 13); // Buenos Aires default
+    map = L.map('map').setView([-34.6037, -58.3816], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
     marker = L.marker([-34.6037, -58.3816]).addTo(map);
-
-    routeLayer = L.polyline([], {color:'#f1d77a', weight:4, opacity:0.8}).addTo(map);
+    routeLayer = L.polyline([], {color:'#f1d77a', weight:5, opacity:0.9}).addTo(map);
   }
 
   function setGpsPill(ok){
@@ -256,10 +260,8 @@
   }
 
   // =========================
-  // Geocoding (simple)
+  // Geocoding con Google
   // =========================
-  // Para no depender de servicios pagos, hacemos geocoding con Nominatim.
-  // Si no querés usarlo, decime y lo cambiamos a coordenadas manuales.
   async function loadCityContext(){
     try{
       const snap = await getDoc(doc(db, "config", "app"));
@@ -274,36 +276,78 @@
   async function geocodeAddress(address){
     const fullAddress = cityContext ? `${address}, ${cityContext}` : address;
     const q = encodeURIComponent(fullAddress);
-    // Nominatim: https://nominatim.openstreetmap.org
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`;
-    const res = await fetch(url, { headers: { "Accept": "application/json" }});
-    if(!res.ok) throw new Error("Geocoding falló");
-    const arr = await res.json();
-    if(!arr || !arr.length) throw new Error(`No se encontró la dirección "${fullAddress}". Probá con más detalle (número, calle completa) o revisá que el dueño haya cargado la Ciudad/Provincia en Configuración.`);
-    const item = arr[0];
-    return { lat: Number(item.lat), lng: Number(item.lon) };
-  }
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${GOOGLE_MAPS_KEY}`;
 
-  // =========================
-  // Ruta real con OSRM
-  // =========================
-  async function fetchRouteOSRM(fromLatLng, toLatLng){
-    // OSRM: /route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson
-    const lon1 = fromLatLng.lng, lat1 = fromLatLng.lat;
-    const lon2 = toLatLng.lng, lat2 = toLatLng.lat;
-
-    const url = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson&steps=false`;
     const res = await fetch(url);
-    if(!res.ok) throw new Error("OSRM falló");
+    if(!res.ok) throw new Error("Geocoding falló (Google)");
     const data = await res.json();
-    const coords = data?.routes?.[0]?.geometry?.coordinates;
-    if(!coords || !coords.length) throw new Error("No se pudo obtener ruta");
-    // coords: [ [lon,lat], ...]
-    const poly = coords.map(c => ({ lng: c[0], lat: c[1] }));
-    return poly;
+
+    if(data.status !== "OK" || !data.results?.length){
+      throw new Error(`No se encontró la dirección "${fullAddress}". Probá con más detalle.`);
+    }
+
+    const loc = data.results[0].geometry.location;
+    return { lat: loc.lat, lng: loc.lng };
   }
 
-  // Distancia punto a polilínea (aprox)
+  // =========================
+  // Ruta con Google Directions
+  // =========================
+  async function fetchRouteGoogle(fromLatLng, toLatLng){
+    const origin = `${fromLatLng.lat},${fromLatLng.lng}`;
+    const destination = `${toLatLng.lat},${toLatLng.lng}`;
+
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&mode=driving&key=${GOOGLE_MAPS_KEY}`;
+
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("Directions falló (Google)");
+    const data = await res.json();
+
+    if(data.status !== "OK" || !data.routes?.length){
+      throw new Error("No se pudo obtener la ruta con Google: " + (data.status || "error"));
+    }
+
+    const encoded = data.routes[0].overview_polyline.points;
+    const poly = decodePolyline(encoded);
+
+    // También devolvemos la distancia en metros si está disponible
+    const distanceMeters = data.routes[0].legs?.[0]?.distance?.value || 0;
+
+    return { poly, distanceMeters };
+  }
+
+  // Decodificar polilínea de Google
+  function decodePolyline(encoded) {
+    let index = 0, lat = 0, lng = 0;
+    const coordinates = [];
+    const len = encoded.length;
+
+    while (index < len) {
+      let b, shift = 0, result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      coordinates.push({ lat: lat / 1e5, lng: lng / 1e5 });
+    }
+    return coordinates;
+  }
+
+  // Distancia punto a punto
   function haversineMeters(a, b){
     const R = 6371000;
     const toRad = (x)=>x*Math.PI/180;
@@ -316,8 +360,6 @@
   }
 
   function closestDistanceToPolylineMeters(point, poly){
-    // poly: array of {lat,lng}
-    // aproximación: min distancia al conjunto de puntos (suficiente para 200m en la práctica)
     let min = Infinity;
     for(const p of poly){
       const d = haversineMeters(point, p);
@@ -351,9 +393,6 @@
     }
 
     try{
-      // Buscamos driver: traemos todos los choferes y comparamos
-      // (evita depender de índices compuestos de Firestore; la lista de
-      // choferes de una app de este tipo es chica)
       const snap = await getDocs(collection(db, "drivers"));
       let found = null;
 
@@ -386,11 +425,6 @@
     }
   }
 
-  // =========================
-  // Precio: zona A/B/C -> Norte/Sur/Centro
-  // (el dueño carga km/hora por Norte/Sur/Centro, y zona por A/B/C;
-  // el chofer solo tiene un selector A/B/C, así que lo mapeamos)
-  // =========================
   function zoneKeyFromSelect(zone){
     const map = { A: "North", B: "South", C: "Center" };
     return map[zone] || "North";
@@ -432,14 +466,11 @@
       let km = 0;
 
       try{
-        poly = await fetchRouteOSRM(fromLatLng, toLatLng);
-        let meters = 0;
-        for(let i=1;i<poly.length;i++){
-          meters += haversineMeters(poly[i-1], poly[i]);
-        }
-        km = meters / 1000;
+        const result = await fetchRouteGoogle(fromLatLng, toLatLng);
+        poly = result.poly;
+        km = result.distanceMeters / 1000;
       }catch(e){
-        console.error("OSRM falló, uso distancia directa", e);
+        console.error("Google Directions falló, uso distancia directa", e);
         poly = [fromLatLng, toLatLng];
         km = haversineMeters(fromLatLng, toLatLng) / 1000;
       }
@@ -483,7 +514,7 @@
       canStart = true;
       $("btnStartTrip").disabled = false;
 
-      alert(`Precio estimado: $${price}`);
+      alert(`Precio estimado: $${price} (${km.toFixed(1)} km)`);
     }catch(e){
       console.error(e);
       alert("No se pudo calcular el precio: " + e.message);
@@ -611,7 +642,7 @@
     if(!routePolyline || !routePolyline.length || offRouteTriggered) return;
 
     const now = Date.now();
-    if(now - lastRouteCheckAt < 5000) return; // no chequear más de 1 vez cada 5s
+    if(now - lastRouteCheckAt < 5000) return;
     lastRouteCheckAt = now;
 
     const dist = closestDistanceToPolylineMeters(pos, routePolyline);

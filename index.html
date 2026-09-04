@@ -145,27 +145,31 @@
       </div>
 
       <div class="panel-box">
-        <strong>Precios activos (se guardan al instante)</strong>
+        <strong>Precio base</strong>
         <div class="settings-grid" style="margin-top:12px;">
-          <div><label>Precio base</label><input type="number" id="baseFare" min="0" step="0.01" value="2"></div>
-          <div><label>Precio por km (Zona Norte)</label><input type="number" id="kmNorth" min="0" step="0.01" value="35"></div>
-          <div><label>Precio por km (Zona Sur)</label><input type="number" id="kmSouth" min="0" step="0.01" value="40"></div>
-
-          <div><label>Precio por km (Zona Centro)</label><input type="number" id="kmCenter" min="0" step="0.01" value="37"></div>
-          <div><label>Precio por hora (Zona Norte)</label><input type="number" id="hourNorth" min="0" step="0.01" value="20"></div>
-          <div><label>Precio por hora (Zona Sur)</label><input type="number" id="hourSouth" min="0" step="0.01" value="20"></div>
-
-          <div><label>Precio por hora (Zona Centro)</label><input type="number" id="hourCenter" min="0" step="0.01" value="20"></div>
-          <div><label>Precio por zona (A)</label><input type="number" id="zoneA" min="0" step="0.01" value="20"></div>
-          <div><label>Precio por zona (B)</label><input type="number" id="zoneB" min="0" step="0.01" value="20"></div>
-
-          <div class="full"><label>Precio por zona (C)</label><input type="number" id="zoneC" min="0" step="0.01" value="20"></div>
+          <div><label>Precio base (se suma en todos los viajes)</label><input type="number" id="baseFare" min="0" step="0.01" value="2"></div>
         </div>
-
         <div class="btn-row">
-          <button type="button" class="btn-primary" onclick="saveSettings()">Guardar precios activos</button>
+          <button type="button" class="btn-primary" onclick="saveBaseFare()">Guardar precio base</button>
         </div>
-        <div class="mini">Los choferes usan estos precios activos al confirmar/comenzar viaje.</div>
+      </div>
+
+      <div class="panel-box">
+        <strong>Zonas y tarifas</strong>
+        <div class="mini">Cada zona tiene su propio precio por km, precio por hora y tarifa fija (son independientes: dejá en 0 el que no uses). Solo el dueño/admin puede cargar o modificar precios acá. Los choferes solo eligen la zona.</div>
+
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="full"><label>Nombre de la zona</label><input type="text" id="newZoneName" placeholder="Ej: Jose Ignacio"></div>
+          <div><label>Precio por km</label><input type="number" id="newZoneKm" min="0" step="0.01" value="0"></div>
+          <div><label>Precio por hora</label><input type="number" id="newZoneHour" min="0" step="0.01" value="0"></div>
+          <div class="full"><label>Tarifa fija de zona</label><input type="number" id="newZoneFlat" min="0" step="0.01" value="0"></div>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn-primary" onclick="addZone()">Agregar zona</button>
+        </div>
+
+        <div id="zonesList" class="drivers" style="margin-top:14px;"></div>
+        <div class="mini">Los choferes usan estas tarifas activas al calcular el precio del viaje.</div>
       </div>
 
       <div class="panel-box">
@@ -289,7 +293,8 @@
 
     initMap();
     startListeners();
-    loadSettings();
+    loadBaseFare();
+    watchZones();
     loadChoferAppUrl();
   }
 
@@ -380,56 +385,114 @@
   }
 
   // =========================
-  // Precios
+  // Precio base
   // =========================
-  async function saveSettings(){
-    const data = {
-      baseFare: Number($("baseFare").value || 0),
-      km: {
-        North: Number($("kmNorth").value || 0),
-        South: Number($("kmSouth").value || 0),
-        Center: Number($("kmCenter").value || 0),
-      },
-      hour: {
-        North: Number($("hourNorth").value || 0),
-        South: Number($("hourSouth").value || 0),
-        Center: Number($("hourCenter").value || 0),
-      },
-      zone: {
-        A: Number($("zoneA").value || 0),
-        B: Number($("zoneB").value || 0),
-        C: Number($("zoneC").value || 0),
-      },
-      updatedAt: serverTimestamp()
-    };
-
+  async function saveBaseFare(){
     try{
-      await setDoc(doc(db, "prices", "active"), data, { merge: true });
-      alert("Precios activos guardados.");
+      await setDoc(doc(db, "prices", "active"), {
+        baseFare: Number($("baseFare").value || 0),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      alert("Precio base guardado.");
     }catch(e){
       console.error(e);
-      alert("No se pudieron guardar los precios: " + (e?.message || e));
+      alert("No se pudo guardar el precio base: " + (e?.message || e));
     }
   }
 
-  async function loadSettings(){
+  async function loadBaseFare(){
     const snap = await getDoc(doc(db, "prices", "active"));
     if(!snap.exists()) return;
-    const p = snap.data();
+    $("baseFare").value = snap.data()?.baseFare ?? 0;
+  }
 
-    $("baseFare").value = p.baseFare ?? 0;
+  // =========================
+  // Zonas y tarifas (dinámicas)
+  // =========================
+  function renderZonesList(zones){
+    const box = $("zonesList");
+    if(!box) return;
+    if(!zones.length){
+      box.innerHTML = '<div class="mini">Todavía no cargaste ninguna zona.</div>';
+      return;
+    }
+    box.innerHTML = zones.map(z => `
+      <div class="item" data-zone-id="${z.id}">
+        <div style="flex:1;min-width:220px">
+          <strong>${escapeHtml(z.name)}</strong>
+          <div class="form-grid" style="margin-top:8px;">
+            <div><label>Precio/km</label><input type="number" min="0" step="0.01" class="zone-km" value="${Number(z.pricePerKm||0)}"></div>
+            <div><label>Precio/hora</label><input type="number" min="0" step="0.01" class="zone-hour" value="${Number(z.pricePerHour||0)}"></div>
+            <div class="full"><label>Tarifa fija</label><input type="number" min="0" step="0.01" class="zone-flat" value="${Number(z.flatPrice||0)}"></div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:0;">
+          <button type="button" class="btn-ok" onclick="saveZone('${z.id}')">Guardar</button>
+          <button type="button" class="btn-danger" onclick="removeZone('${z.id}')">Eliminar</button>
+        </div>
+      </div>
+    `).join("");
+  }
 
-    $("kmNorth").value = p?.km?.North ?? 0;
-    $("kmSouth").value = p?.km?.South ?? 0;
-    $("kmCenter").value = p?.km?.Center ?? 0;
+  function watchZones(){
+    onSnapshot(collection(db, "zones"), (snap) => {
+      const zones = [];
+      snap.forEach(d => zones.push({ id: d.id, ...d.data() }));
+      zones.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+      renderZonesList(zones);
+    });
+  }
 
-    $("hourNorth").value = p?.hour?.North ?? 0;
-    $("hourSouth").value = p?.hour?.South ?? 0;
-    $("hourCenter").value = p?.hour?.Center ?? 0;
+  async function addZone(){
+    const name = String($("newZoneName").value || "").trim();
+    if(!name){
+      alert("Poné un nombre de zona.");
+      return;
+    }
+    try{
+      await addDoc(collection(db, "zones"), {
+        name,
+        pricePerKm: Number($("newZoneKm").value || 0),
+        pricePerHour: Number($("newZoneHour").value || 0),
+        flatPrice: Number($("newZoneFlat").value || 0),
+        createdAt: serverTimestamp()
+      });
+      $("newZoneName").value = "";
+      $("newZoneKm").value = 0;
+      $("newZoneHour").value = 0;
+      $("newZoneFlat").value = 0;
+    }catch(e){
+      console.error(e);
+      alert("No se pudo agregar la zona: " + (e?.message || e));
+    }
+  }
 
-    $("zoneA").value = p?.zone?.A ?? 0;
-    $("zoneB").value = p?.zone?.B ?? 0;
-    $("zoneC").value = p?.zone?.C ?? 0;
+  async function saveZone(zoneId){
+    const row = document.querySelector(`[data-zone-id="${zoneId}"]`);
+    if(!row) return;
+    const pricePerKm = Number(row.querySelector(".zone-km").value || 0);
+    const pricePerHour = Number(row.querySelector(".zone-hour").value || 0);
+    const flatPrice = Number(row.querySelector(".zone-flat").value || 0);
+    try{
+      await setDoc(doc(db, "zones", zoneId), {
+        pricePerKm, pricePerHour, flatPrice,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      alert("Zona actualizada.");
+    }catch(e){
+      console.error(e);
+      alert("No se pudo guardar la zona: " + (e?.message || e));
+    }
+  }
+
+  async function removeZone(zoneId){
+    if(!confirm("¿Eliminar esta zona? Los choferes ya no podrán elegirla.")) return;
+    try{
+      await deleteDoc(doc(db, "zones", zoneId));
+    }catch(e){
+      console.error(e);
+      alert("No se pudo eliminar la zona: " + (e?.message || e));
+    }
   }
 
   // =========================
@@ -830,7 +893,10 @@
   // =========================
   window.saveDriver = saveDriver;
   window.deleteDriver = deleteDriver;
-  window.saveSettings = saveSettings;
+  window.saveBaseFare = saveBaseFare;
+  window.addZone = addZone;
+  window.saveZone = saveZone;
+  window.removeZone = removeZone;
   window.clearAlerts = clearAlerts;
   window.clearHistory = clearHistory;
   window.resolveAlert = resolveAlert;

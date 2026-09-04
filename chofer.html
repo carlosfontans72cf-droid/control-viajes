@@ -109,19 +109,17 @@
 
       <div class="row" style="margin-top:12px">
         <div style="flex:1;min-width:160px">
+          <label>Zona</label>
+          <select id="zoneSelect">
+            <option value="">Cargando zonas...</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:160px">
           <label>Modo de cobro</label>
           <select id="pricingMode">
             <option value="km">Kilómetros</option>
             <option value="hour">Hora</option>
-            <option value="zone">Zona</option>
-          </select>
-        </div>
-        <div style="flex:1;min-width:160px">
-          <label>Zona (si usás Zona)</label>
-          <select id="zoneSelect">
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
+            <option value="zone">Tarifa fija de zona</option>
           </select>
         </div>
         <div style="flex:1;min-width:160px">
@@ -307,8 +305,37 @@
 
   async function getActivePrices(){
     const snap = await getDoc(doc(db, "prices", "active"));
-    if(!snap.exists()) throw new Error("No hay precios activos cargados por el dueño.");
+    if(!snap.exists()) return { baseFare: 0 };
     return snap.data();
+  }
+
+  // =========================
+  // Zonas (cargadas por el dueño/admin)
+  // =========================
+  let zonesCache = [];
+
+  async function loadZonesIntoSelect(){
+    try{
+      const snap = await getDocs(collection(db, "zones"));
+      zonesCache = [];
+      snap.forEach(d => zonesCache.push({ id: d.id, ...d.data() }));
+      zonesCache.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+
+      const select = $("zoneSelect");
+      if(!zonesCache.length){
+        select.innerHTML = '<option value="">No hay zonas cargadas</option>';
+        return;
+      }
+      select.innerHTML = zonesCache.map(z => `<option value="${z.id}">${z.name}</option>`).join("");
+    }catch(e){
+      console.error("No se pudieron cargar las zonas", e);
+      $("zoneSelect").innerHTML = '<option value="">Error al cargar zonas</option>';
+    }
+  }
+
+  function getSelectedZone(){
+    const id = $("zoneSelect").value;
+    return zonesCache.find(z => z.id === id) || null;
   }
 
   function normalizeName(s){ return String(s ?? "").trim(); }
@@ -349,14 +376,11 @@
       initMap();
       startGPS();
       loadCityContext();
+      loadZonesIntoSelect();
     }catch(e){
       console.error(e);
       alert("No se pudo ingresar.");
     }
-  }
-
-  function zoneKeyFromSelect(zone){
-    return { A: "North", B: "South", C: "Center" }[zone] || "North";
   }
 
   function drawRoute(poly){
@@ -375,11 +399,15 @@
     const fromAddress = normalizeName($("fromAddress").value);
     const toAddress = normalizeName($("toAddress").value);
     const mode = $("pricingMode").value;
-    const zone = $("zoneSelect").value;
+    const zone = getSelectedZone();
     const hoursEstimate = Number($("hoursEstimate").value || 0);
 
     if(!fromAddress || !toAddress){
       alert("Completá dirección de partida y de llegada.");
+      return;
+    }
+    if(!zone){
+      alert("Elegí una zona (el dueño/admin todavía no cargó ninguna, o no se pudieron cargar).");
       return;
     }
 
@@ -404,11 +432,11 @@
       let price = Number(prices.baseFare || 0);
 
       if(mode === "km"){
-        price += Number(prices?.km?.[zoneKeyFromSelect(zone)] || 0) * km;
+        price += Number(zone.pricePerKm || 0) * km;
       } else if(mode === "hour"){
-        price += Number(prices?.hour?.[zoneKeyFromSelect(zone)] || 0) * hoursEstimate;
+        price += Number(zone.pricePerHour || 0) * hoursEstimate;
       } else if(mode === "zone"){
-        price += Number(prices?.zone?.[zone] || 0);
+        price += Number(zone.flatPrice || 0);
       }
 
       price = Math.round(price * 100) / 100;
@@ -425,7 +453,8 @@
         from: fromAddress,
         to: toAddress,
         pricingMode: mode,
-        zone,
+        zoneId: zone.id,
+        zoneName: zone.name,
         hoursEstimate,
         km,
         price,
